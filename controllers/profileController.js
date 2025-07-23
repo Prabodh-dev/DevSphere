@@ -1,6 +1,5 @@
 import UserProfile from "../models/UserProfile.js";
 import { uploadToS3 } from "../utils/s3Utils.js";
-import { v4 as uuidv4 } from "uuid";
 
 export const createOrUpdateProfile = async (req, res) => {
   try {
@@ -8,8 +7,11 @@ export const createOrUpdateProfile = async (req, res) => {
     let avatarUrl;
 
     if (req.file) {
-      const key = `avatars/${uuidv4()}-${req.file.originalname}`;
-      avatarUrl = await uploadToS3(req.file.buffer, key, req.file.mimetype);
+      avatarUrl = await uploadToS3(
+        req.file.buffer,
+        req.file.originalname,
+        req.file.mimetype
+      );
     }
 
     const profileData = {
