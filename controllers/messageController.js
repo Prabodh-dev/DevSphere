@@ -31,15 +31,25 @@ export const fetchChats = async (req, res) => {
 };
 
 export const sendMessage = async (req, res) => {
-  const { chatId, text } = req.body;
+  const { chatId, text, type, code } = req.body;
 
   try {
-    const message = await Message.create({
+    const messageData = {
       chat: chatId,
       sender: req.user._id,
-      text,
-    });
+      type: type || "text",
+    };
 
+    if (type === "code" && code) {
+      messageData.code = {
+        language: code.language || "plaintext",
+        content: code.content,
+      };
+    } else {
+      messageData.text = text;
+    }
+
+    const message = await Message.create(messageData);
     await Chat.findByIdAndUpdate(chatId, { updatedAt: new Date() });
 
     const fullMsg = await Message.findById(message._id)

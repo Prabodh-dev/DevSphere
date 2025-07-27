@@ -1,5 +1,6 @@
 import { Server } from "socket.io";
 import redisClient from "./config/redis.js";
+import LiveCode from "./models/LiveCode.js";
 
 export const setupSocketIO = (server) => {
   const io = new Server(server, {
@@ -14,17 +15,23 @@ export const setupSocketIO = (server) => {
     if (!userId) return socket.disconnect();
 
     await redisClient.sAdd("onlineUsers", userId);
-    console.log(` User ${userId} connected`);
+    console.log(`User ${userId} connected`);
     socket.broadcast.emit("user-online", userId);
 
+    // ========== Chat Events ==========
     socket.on("join-chat", (chatId) => {
       socket.join(chatId);
-      console.log(` User ${userId} joined chat ${chatId}`);
+      console.log(`User ${userId} joined chat ${chatId}`);
     });
 
     socket.on("send-message", (data) => {
       const { chatId, message } = data;
       socket.to(chatId).emit("receive-message", message);
+    });
+
+    socket.on("group-message", (data) => {
+      const { chatId, message } = data;
+      io.to(chatId).emit("receive-message", message);
     });
 
     socket.on("typing", (chatId) => {
@@ -35,10 +42,38 @@ export const setupSocketIO = (server) => {
       socket.to(chatId).emit("stop-typing", userId);
     });
 
+    // ========== Live Code Editor ==========
+    socket.on("join-live-code", async ({ chatId }) => {
+      socket.join(`live-${chatId}`);
+      const doc = await LiveCode.findOne({ chatId });
+      if (doc) {
+        socket.emit("load-code", doc);
+      }
+    });
+
+    socket.on(
+      "code-change",
+      async ({ chatId, code, language, fileName, userId }) => {
+        await LiveCode.findOneAndUpdate(
+          { chatId },
+          { code, language, fileName, updatedBy: userId },
+          { upsert: true }
+        );
+        socket
+          .to(`live-${chatId}`)
+          .emit("code-update", { code, language, fileName });
+      }
+    );
+
+    // ========== Disconnect ==========
     socket.on("disconnect", async () => {
       await redisClient.sRem("onlineUsers", userId);
       socket.broadcast.emit("user-offline", userId);
-      console.log(` User ${userId} disconnected`);
+      console.log(`User ${userId} disconnected`);
+    });
+
+    socket.on("send-notification", ({ toUserId, notification }) => {
+      io.to(toUserId).emit("receive-notification", notification);
     });
   });
 };
