@@ -42,6 +42,7 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log(" MongoDB Connected.....");
+    console.log("Spanning in to DevSphere server");
     server.listen(5000, () => console.log(" Server running on port 5000"));
   })
   .catch((err) => console.error(" Mongo Error", err));
