@@ -10,7 +10,7 @@ yarn-error.log*
 
 # Environment variables
 .env
-.env.*
+!.env.example
 
 # OS-specific files
 .DS_Store
@@ -26,4 +26,4 @@ coverage/
 
 # Optional: Ignore package-lock if using yarn
 # package-lock.json
-# yarn.lock 
+# yarn.lock
