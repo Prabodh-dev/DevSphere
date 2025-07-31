@@ -12,6 +12,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Import routes
 import authRoutes from "./routes/authRoutes.js";
 import profileRoutes from "./routes/profileRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
@@ -24,6 +25,7 @@ import notificationRoutes from "./routes/notificationRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 
+// Use routes
 app.use("/api/auth", authRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/users", userRoutes);
@@ -36,16 +38,22 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/report", reportRoutes);
 
+// Create HTTP server and init socket
 const server = http.createServer(app);
-setupSocketIO(server);
+
+try {
+  setupSocketIO(server);
+  console.log(" Socket.IO initialized");
+} catch (err) {
+  console.error(" Socket.IO setup failed", err);
+}
 
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
-    console.log(" MongoDB Connected.....");
-    console.log("Spanning in to DevSphere server");
-
+    console.log(" MongoDB Connected");
+    console.log(" Spanning in to DevSphere server");
     const PORT = process.env.PORT || 5000;
     server.listen(PORT, () => console.log(` Server running on port ${PORT}`));
   })
-  .catch((err) => console.error(" Mongo Error", err));
+  .catch((err) => console.error(" MongoDB Connection Error:", err));
