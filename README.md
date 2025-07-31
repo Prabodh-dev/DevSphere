@@ -96,7 +96,6 @@ For major changes, open an issue first.
 🧑‍💻 Author
 Prabodh Raj U R
 Backend & DevOps Developer
-🔗 LinkedIn • GitHub
 
 ⭐️ Show your support
 If you liked the project, give it a ⭐️ on GitHub!
