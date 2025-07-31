@@ -14,7 +14,13 @@ redisClient.on("error", (err) => {
   console.error(" Redis Client Error", err);
 });
 
-await redisClient.connect();
-console.log(" Connected to Upstash Redis");
+redisClient
+  .connect()
+  .then(() => {
+    console.log(" Connected to Upstash Redis");
+  })
+  .catch((err) => {
+    console.error(" Redis connection failed", err);
+  });
 
 export default redisClient;
