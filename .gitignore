@@ -16,9 +16,7 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
-# Docker
-Dockerfile
-docker-compose.yml
+# Docker ignore file only (keep Dockerfile + compose)
 .dockerignore
 
 # Test coverage
