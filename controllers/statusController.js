@@ -1,17 +1,77 @@
-// models/Status.js
-import mongoose from "mongoose";
+import Status from "../models/Status.js";
+import { uploadToS3 } from "../utils/s3Utils.js";
 
-const statusSchema = new mongoose.Schema(
-  {
-    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    type: { type: String, enum: ["image", "video", "text"], required: true },
-    content: { type: String, required: true }, // URL or text
-    expiresAt: { type: Date, required: true }, // TTL auto-delete
-  },
-  { timestamps: true }
-);
+/**
+ * POST /api/status
+ * Create a new status (text, image, or video)
+ */
+export const postStatus = async (req, res) => {
+  try {
+    const { type, content } = req.body;
+    const userId = req.user._id;
 
-// TTL: Auto-delete after 24 hrs
-statusSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+    if (!type) {
+      return res.status(400).json({ message: "Status type is required" });
+    }
 
-export default mongoose.model("Status", statusSchema);
+    let finalContent = content;
+
+    // Handle image/video upload
+    if (type === "image" || type === "video") {
+      if (!req.file) {
+        return res
+          .status(400)
+          .json({ message: "File is required for image/video status" });
+      }
+
+      finalContent = await uploadToS3(
+        req.file.buffer,
+        req.file.originalname,
+        req.file.mimetype
+      );
+    }
+
+    // If text status, ensure content is provided
+    if (type === "text" && !content) {
+      return res.status(400).json({ message: "Text content is required" });
+    }
+
+    // Create status entry
+    const status = await Status.create({
+      user: userId,
+      type,
+      content: finalContent,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hrs
+    });
+
+    res.status(201).json({ message: "Status created", status });
+  } catch (err) {
+    console.error("POST STATUS ERROR:", err.message);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+/**
+ * GET /api/status/feed
+ * Fetch all active statuses from followed users
+ */
+export const getStatusFeed = async (req, res) => {
+  try {
+    const user = req.user;
+
+    // Assuming user.following exists
+    const followedIds = user.following || [];
+
+    const statuses = await Status.find({
+      user: { $in: [...followedIds, user._id] },
+      expiresAt: { $gt: new Date() },
+    })
+      .sort({ createdAt: -1 })
+      .populate("user", "username avatar");
+
+    res.status(200).json({ count: statuses.length, statuses });
+  } catch (err) {
+    console.error("GET FEED ERROR:", err.message);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};

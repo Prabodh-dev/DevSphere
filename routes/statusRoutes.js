@@ -1,17 +1,11 @@
-// models/Status.js
-import mongoose from "mongoose";
+import express from "express";
+import { postStatus, getStatusFeed } from "../controllers/statusController.js";
+import authMiddleware from "../middlewares/authMiddleware.js";
+import upload from "../utils/multer.js";
 
-const statusSchema = new mongoose.Schema(
-  {
-    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    type: { type: String, enum: ["image", "video", "text"], required: true },
-    content: { type: String, required: true }, // URL or text
-    expiresAt: { type: Date, required: true }, // TTL auto-delete
-  },
-  { timestamps: true }
-);
+const router = express.Router();
 
-// TTL: Auto-delete after 24 hrs
-statusSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+router.post("/", authMiddleware, upload.single("media"), postStatus);
+router.get("/feed", authMiddleware, getStatusFeed);
 
-export default mongoose.model("Status", statusSchema);
+export default router;
