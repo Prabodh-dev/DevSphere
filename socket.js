@@ -1,5 +1,6 @@
+// socket.js
 import { Server } from "socket.io";
-import redisClient from "./config/redis.js";
+import getRedisClient, { initRedis } from "./config/redis.js";
 import LiveCode from "./models/LiveCode.js";
 
 export const setupSocketIO = (server) => {
@@ -13,6 +14,10 @@ export const setupSocketIO = (server) => {
   io.on("connection", async (socket) => {
     const userId = socket.handshake.query.userId;
     if (!userId) return socket.disconnect();
+
+    //  Initialize Redis (safe lazy connection)
+    await initRedis();
+    const redisClient = getRedisClient();
 
     await redisClient.sAdd("onlineUsers", userId);
     console.log(`User ${userId} connected`);
@@ -65,15 +70,16 @@ export const setupSocketIO = (server) => {
       }
     );
 
+    // ========== Notifications ==========
+    socket.on("send-notification", ({ toUserId, notification }) => {
+      io.to(toUserId).emit("receive-notification", notification);
+    });
+
     // ========== Disconnect ==========
     socket.on("disconnect", async () => {
       await redisClient.sRem("onlineUsers", userId);
       socket.broadcast.emit("user-offline", userId);
       console.log(`User ${userId} disconnected`);
-    });
-
-    socket.on("send-notification", ({ toUserId, notification }) => {
-      io.to(toUserId).emit("receive-notification", notification);
     });
   });
 };
