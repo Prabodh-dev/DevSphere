@@ -1,0 +1,14 @@
+import { describe, it, expect } from "vitest";
+
+// A local .env must not change test results, so the setup file sets every
+// variable the tests rely on.
+describe("test environment", () => {
+  it("uses the values from tests/setup.js", () => {
+    expect(process.env.AWS_REGION).toBe("eu-west-1");
+    expect(process.env.AWS_ACCESS_KEY).toBe("test-access-key-id");
+    expect(process.env.AWS_SECRET_KEY).toBe("test-secret-access-key");
+    expect(process.env.AVATAR_BUCKET).toBe("example-bucket");
+    expect(process.env.MONGO_URI).toBe("");
+    expect(process.env.CORS_ORIGINS).toBe("");
+  });
+});

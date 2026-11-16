@@ -12,7 +12,10 @@ import { png, jpeg, mp4, html } from "./helpers/files.js";
 import { sentCommands } from "./helpers/aws.js";
 
 const send = vi.hoisted(() => vi.fn());
-vi.mock("../utils/s3.js", () => ({ default: { send } }));
+vi.mock("../utils/s3.js", () => ({
+  getS3Client: () => ({ send }),
+  isUploadConfigured: () => Boolean(process.env.AVATAR_BUCKET),
+}));
 vi.mock("@aws-sdk/s3-request-presigner", () => ({
   getSignedUrl: vi.fn(
     async (_client, command, options) =>
