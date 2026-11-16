@@ -57,6 +57,7 @@ Copy `.env.example` to `.env` and set:
 | `COOKIE_SECURE`            | no          | `true` when served over HTTPS, so the refresh cookie is `Secure`                         |
 | `REFRESH_RATE_LIMIT_MAX`   | no          | Refresh requests per 15 minutes, default `60`                                            |
 | `REDIS_URL`                | no          | Redis URL for online presence; the app works without it                                  |
+| `REDIS_KEY_PREFIX`         | no          | Prefix for the Redis keys the app writes, default none                                   |
 | `RATE_LIMIT_MAX`           | no          | Requests per 15 minutes for `/api`, default `300`                                        |
 | `AUTH_RATE_LIMIT_MAX`      | no          | Login and register requests per 15 minutes, default `10`                                 |
 | `HIGHLIGHT_RATE_LIMIT_MAX` | no          | Snippet highlight requests per minute, default `30`                                      |

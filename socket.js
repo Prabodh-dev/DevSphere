@@ -50,7 +50,10 @@ const setPresence = async (command, userId) => {
   const client = getRedisClient();
   if (!client) return;
   try {
-    await client[command]("onlineUsers", userId);
+    await client[command](
+      `${process.env.REDIS_KEY_PREFIX ?? ""}onlineUsers`,
+      userId
+    );
   } catch (err) {
     console.warn(`Redis ${command} failed:`, err.message);
   }
