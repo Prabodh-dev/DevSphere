@@ -415,3 +415,27 @@ describe("payload limits", () => {
     expect(await received).toEqual({ text: "still here" });
   });
 });
+
+describe("live code writes", () => {
+  it("keep a single document when many first edits arrive together", async () => {
+    await LiveCode.init();
+    const a = await server.client(alice);
+    const b = await server.client(bob);
+
+    const errors = [];
+    a.on("socket-error", (e) => errors.push(e));
+    b.on("socket-error", (e) => errors.push(e));
+    for (let i = 0; i < 6; i++) {
+      (i % 2 ? a : b).emit("code-change", {
+        chatId: chat.id,
+        code: `v${i}`,
+        language: "js",
+        fileName: "f",
+      });
+    }
+    await sleep(800);
+
+    expect(await LiveCode.countDocuments({ chatId: chat.id })).toBe(1);
+    expect(errors).toEqual([]);
+  });
+});

@@ -29,6 +29,8 @@ const messageSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+messageSchema.index({ chat: 1, createdAt: -1 });
+
 // Code messages carry code, every other kind carries text.
 messageSchema.pre("validate", function () {
   if (this.type === "code") {

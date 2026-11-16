@@ -17,4 +17,7 @@ const liveCodeSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// One shared document per chat.
+liveCodeSchema.index({ chatId: 1 }, { unique: true });
+
 export default mongoose.model("LiveCode", liveCodeSchema);

@@ -23,6 +23,8 @@ const statusSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+statusSchema.index({ user: 1, visibleUntil: 1 });
+
 // TTL: the record is removed once expiresAt has passed.
 statusSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 

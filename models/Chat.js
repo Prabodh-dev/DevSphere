@@ -39,6 +39,7 @@ const chatSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-chatSchema.index({ members: 1 });
+// Chat lists: a member's chats, most recent activity first.
+chatSchema.index({ members: 1, updatedAt: -1 });
 
 export default mongoose.model("Chat", chatSchema);

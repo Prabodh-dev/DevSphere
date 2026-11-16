@@ -265,3 +265,66 @@ describe("004-chat-latest-message", () => {
     ).toBeUndefined();
   });
 });
+
+describe("005-merge-duplicate-live-code", () => {
+  const name = "005-merge-duplicate-live-code";
+
+  it("keeps the most recently updated document for each chat", async () => {
+    const [chatA, chatB] = [id(), id()];
+    const [oldA, newestA, middleA, onlyB] = [id(), id(), id(), id()];
+    await db.collection("livecodes").insertMany([
+      {
+        _id: oldA,
+        chatId: chatA,
+        code: "old",
+        updatedAt: new Date("2024-01-01"),
+      },
+      {
+        _id: newestA,
+        chatId: chatA,
+        code: "newest",
+        updatedAt: new Date("2024-03-01"),
+      },
+      {
+        _id: middleA,
+        chatId: chatA,
+        code: "middle",
+        updatedAt: new Date("2024-02-01"),
+      },
+      {
+        _id: onlyB,
+        chatId: chatB,
+        code: "single",
+        updatedAt: new Date("2024-01-01"),
+      },
+    ]);
+
+    expect((await dryRun(name)).changed).toBe(2);
+    expect(await db.collection("livecodes").countDocuments()).toBe(4);
+
+    expect((await runTwice(name)).changed).toBe(2);
+
+    const left = await db
+      .collection("livecodes")
+      .find({})
+      .sort({ code: 1 })
+      .toArray();
+    expect(left.map((d) => d.code)).toEqual(["newest", "single"]);
+  });
+
+  it("breaks ties by document id", async () => {
+    const chatId = id();
+    const [first, second] = [
+      new mongoose.Types.ObjectId(),
+      new mongoose.Types.ObjectId(),
+    ];
+    const same = new Date("2024-01-01");
+    await db.collection("livecodes").insertMany([
+      { _id: first, chatId, code: "first", updatedAt: same },
+      { _id: second, chatId, code: "second", updatedAt: same },
+    ]);
+    await runTwice(name);
+    const left = await db.collection("livecodes").find({}).toArray();
+    expect(left.map((d) => d.code)).toEqual(["second"]);
+  });
+});

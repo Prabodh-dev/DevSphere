@@ -20,4 +20,7 @@ const reportSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+reportSchema.index({ targetType: 1, targetId: 1 });
+reportSchema.index({ createdAt: -1 });
+
 export default mongoose.model("Report", reportSchema);

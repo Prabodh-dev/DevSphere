@@ -4,6 +4,8 @@
 const defaults = {
   JWT_SECRET: "test-only-secret-that-is-long-enough-123",
   PORT: "",
+  NODE_ENV: "test",
+  MONGO_AUTO_INDEX: "true",
   MONGO_URI: "",
   // Origin used by the session tests (refresh and logout check it).
   CORS_ORIGINS: "https://app.example.test",

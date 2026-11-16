@@ -12,7 +12,8 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "make-admin": "node scripts/make-admin.js",
-    "migrate": "node scripts/migrate.js"
+    "migrate": "node scripts/migrate.js",
+    "db:indexes": "node scripts/sync-indexes.js"
   },
   "keywords": [],
   "author": "Prabodh Raj U R",

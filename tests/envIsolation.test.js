@@ -12,5 +12,7 @@ describe("test environment", () => {
     expect(process.env.CORS_ORIGINS).toBe("https://app.example.test");
     expect(process.env.ACCESS_TOKEN_TTL).toBe("15m");
     expect(process.env.COOKIE_SECURE).toBe("false");
+    expect(process.env.NODE_ENV).toBe("test");
+    expect(process.env.MONGO_AUTO_INDEX).toBe("true");
   });
 });
