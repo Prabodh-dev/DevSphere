@@ -9,6 +9,7 @@ const statusSchema = new mongoose.Schema(
     // Text statuses keep their text here; media statuses keep it in mediaKey.
     content: {
       type: String,
+      maxlength: 1000,
       required: function () {
         return this.type === "text";
       },

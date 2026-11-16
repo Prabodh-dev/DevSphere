@@ -10,8 +10,8 @@ const liveCodeSchema = new mongoose.Schema(
       required: true,
     },
     code: { type: String, required: true },
-    language: { type: String, default: "plaintext" },
-    fileName: { type: String, default: "main" },
+    language: { type: String, default: "plaintext", maxlength: 50 },
+    fileName: { type: String, default: "main", maxlength: 100 },
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   },
   { timestamps: true }

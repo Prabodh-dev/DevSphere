@@ -12,6 +12,7 @@ const chatSchema = new mongoose.Schema(
     chatName: {
       type: String,
       trim: true,
+      maxlength: 100,
     },
     members: [
       {
@@ -31,7 +32,8 @@ const chatSchema = new mongoose.Schema(
     },
     groupAvatar: {
       type: String,
-      default: "", // Optional: Cloudinary/S3 image for group avatar
+      default: "", // Optional image for the group
+      maxlength: 300,
     },
   },
   { timestamps: true }

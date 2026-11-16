@@ -15,7 +15,7 @@ const reportSchema = new mongoose.Schema(
       required: true,
     },
     targetId: { type: mongoose.Schema.Types.ObjectId, required: true },
-    reason: { type: String, required: true },
+    reason: { type: String, required: true, trim: true, maxlength: 1000 },
   },
   { timestamps: true }
 );

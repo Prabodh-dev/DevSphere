@@ -10,7 +10,7 @@ const notificationSchema = new mongoose.Schema(
       enum: ["message", "follow", "group", "status"],
       required: true,
     },
-    content: { type: String }, // Optional message
+    content: { type: String, maxlength: 500 }, // Optional message
     fromUser: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     chatId: { type: mongoose.Schema.Types.ObjectId, ref: "Chat" },
     seen: { type: Boolean, default: false },

@@ -102,7 +102,11 @@ describe("admin routes", () => {
 
 describe("admin removal of reported content", () => {
   it("validates the type and the id", async () => {
-    const msg = await Message.create({ text: "x" });
+    const msg = await Message.create({
+      chat: missingId(),
+      sender: member.id,
+      text: "x",
+    });
     expect(
       (await as(admin).delete(`/api/admin/remove/other/${msg.id}`)).status
     ).toBe(400);
@@ -119,8 +123,16 @@ describe("admin removal of reported content", () => {
   });
 
   it("deletes the item and the reports that point at it", async () => {
-    const msg = await Message.create({ text: "x" });
-    const other = await Message.create({ text: "y" });
+    const msg = await Message.create({
+      chat: missingId(),
+      sender: member.id,
+      text: "x",
+    });
+    const other = await Message.create({
+      chat: missingId(),
+      sender: member.id,
+      text: "y",
+    });
     await Report.create([
       {
         reportedBy: member.id,

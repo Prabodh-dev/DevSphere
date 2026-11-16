@@ -11,9 +11,9 @@ const userProfileSchema = new mongoose.Schema(
     },
     avatarKey: { type: String },
     bio: { type: String, maxlength: 300 },
-    github: { type: String },
-    linkedin: { type: String },
-    website: { type: String },
+    github: { type: String, maxlength: 200 },
+    linkedin: { type: String, maxlength: 200 },
+    website: { type: String, maxlength: 200 },
     tags: [{ type: String }],
   },
   { timestamps: true }
