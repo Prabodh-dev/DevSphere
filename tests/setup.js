@@ -1,3 +1,5 @@
+import { randomBytes } from "crypto";
+
 // Every environment variable the code reads is set here, explicitly. dotenv
 // never overrides a variable that is already defined, so a developer's local
 // .env cannot change test results. Values are placeholders for tests only.
@@ -27,6 +29,12 @@ const defaults = {
   AVATAR_BUCKET: "example-bucket",
   MEDIA_URL_TTL_SECONDS: "300",
 };
+
+// Each test file gets its own database and Redis key prefix, so files never
+// see each other's documents, indexes or keys.
+const suffix = randomBytes(4).toString("hex");
+defaults.TEST_DB_NAME = `devsphere_test_${suffix}`;
+defaults.REDIS_KEY_PREFIX = `test:${suffix}:`;
 
 for (const [name, value] of Object.entries(defaults)) {
   process.env[name] = value;

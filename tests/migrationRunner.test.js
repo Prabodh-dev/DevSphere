@@ -6,7 +6,12 @@ import path from "path";
 import { spawn } from "child_process";
 import { fileURLToPath } from "url";
 import { runMigrations } from "../utils/migrationRunner.js";
-import { connectTestDb, clearTestDb, disconnectTestDb } from "./helpers/db.js";
+import {
+  connectTestDb,
+  clearTestDb,
+  disconnectTestDb,
+  testMongoUri,
+} from "./helpers/db.js";
 import { controlledEnv } from "./helpers/env.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -112,8 +117,7 @@ describe("runMigrations", () => {
 
 describe("pnpm migrate", () => {
   function run(args, extraEnv = {}) {
-    const uri = new URL(process.env.TEST_MONGO_URI);
-    uri.pathname = "/devsphere_test";
+    const uri = new URL(testMongoUri());
     const child = spawn(process.execPath, ["scripts/migrate.js", ...args], {
       cwd: root,
       env: controlledEnv({ MONGO_URI: uri.toString(), ...extraEnv }),

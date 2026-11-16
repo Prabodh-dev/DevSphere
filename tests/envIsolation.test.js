@@ -16,3 +16,12 @@ describe("test environment", () => {
     expect(process.env.MONGO_AUTO_INDEX).toBe("true");
   });
 });
+
+describe("per-file isolation", () => {
+  it("gives each test file its own database name and Redis prefix", () => {
+    expect(process.env.TEST_DB_NAME).toMatch(/^devsphere_test_[0-9a-f]{8}$/);
+    expect(process.env.REDIS_KEY_PREFIX).toBe(
+      `test:${process.env.TEST_DB_NAME.slice("devsphere_test_".length)}:`
+    );
+  });
+});

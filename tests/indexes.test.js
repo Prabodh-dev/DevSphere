@@ -18,7 +18,7 @@ import Status from "../models/Status.js";
 import Report from "../models/Report.js";
 import LiveCode from "../models/LiveCode.js";
 import { getAutoIndex, getEnvProblems } from "../config/env.js";
-import { connectTestDb, disconnectTestDb } from "./helpers/db.js";
+import { connectTestDb, disconnectTestDb, testMongoUri } from "./helpers/db.js";
 import { controlledEnv } from "./helpers/env.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -109,19 +109,13 @@ describe("MONGO_AUTO_INDEX", () => {
 });
 
 describe("pnpm db:indexes", () => {
-  const uri = () => {
-    const url = new URL(process.env.TEST_MONGO_URI);
-    url.pathname = "/devsphere_test";
-    return url.toString();
-  };
-
   function run(args = []) {
     const child = spawn(
       process.execPath,
       ["scripts/sync-indexes.js", ...args],
       {
         cwd: root,
-        env: controlledEnv({ MONGO_URI: uri() }),
+        env: controlledEnv({ MONGO_URI: testMongoUri() }),
       }
     );
     let output = "";

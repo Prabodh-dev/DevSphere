@@ -1,9 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterAll } from "vitest";
 import { spawn } from "child_process";
 import net from "net";
 import path from "path";
 import { fileURLToPath } from "url";
 import { controlledEnv } from "./helpers/env.js";
+import { dropTestDb, testMongoUri } from "./helpers/db.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -47,6 +48,8 @@ async function waitForHealthy(port, ms = 15000) {
   throw new Error("server did not become healthy");
 }
 
+afterAll(dropTestDb);
+
 describe("server startup", () => {
   it("exits with an error when required variables are missing", async () => {
     const { exited, output } = startServer({});
@@ -59,7 +62,7 @@ describe("server startup", () => {
 
   it("exits with an error when the JWT secret is too short", async () => {
     const { exited, output } = startServer({
-      MONGO_URI: process.env.TEST_MONGO_URI,
+      MONGO_URI: testMongoUri(),
       JWT_SECRET: "short",
     });
     const { code } = await exited;
@@ -81,7 +84,7 @@ describe("server startup", () => {
   it("starts and serves /healthz with every upload setting blank", async () => {
     const port = await freePort();
     const { child, exited, output } = startServer({
-      MONGO_URI: process.env.TEST_MONGO_URI,
+      MONGO_URI: testMongoUri(),
       JWT_SECRET: "test-only-secret-that-is-long-enough-123",
       PORT: String(port),
       REDIS_URL: process.env.REDIS_URL,
@@ -104,7 +107,7 @@ describe("server startup", () => {
     async () => {
       const port = await freePort();
       const { child, exited } = startServer({
-        MONGO_URI: process.env.TEST_MONGO_URI,
+        MONGO_URI: testMongoUri(),
         JWT_SECRET: "test-only-secret-that-is-long-enough-123",
         PORT: String(port),
         REDIS_URL: process.env.REDIS_URL,

@@ -10,7 +10,12 @@ import User from "../models/User.js";
 import Status from "../models/Status.js";
 import Message from "../models/Message.js";
 import Report from "../models/Report.js";
-import { connectTestDb, clearTestDb, disconnectTestDb } from "./helpers/db.js";
+import {
+  connectTestDb,
+  clearTestDb,
+  disconnectTestDb,
+  testMongoUri,
+} from "./helpers/db.js";
 import { createUser, makeAdmin, bearer } from "./helpers/users.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -185,8 +190,7 @@ describe("admin removal of reported content", () => {
 
 describe("make-admin script", () => {
   function run(args) {
-    const uri = new URL(process.env.TEST_MONGO_URI);
-    uri.pathname = "/devsphere_test";
+    const uri = new URL(testMongoUri());
     const child = spawn(process.execPath, ["scripts/make-admin.js", ...args], {
       cwd: root,
       env: controlledEnv({ MONGO_URI: uri.toString() }),
