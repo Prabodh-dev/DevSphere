@@ -1,12 +1,20 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
+import request from "supertest";
+import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
-import { startSocketServer, once, never, sleep } from "./helpers/socket.js";
-import { connectTestDb, disconnectTestDb } from "./helpers/db.js";
+import app from "../app.js";
+import Chat from "../models/Chat.js";
 import LiveCode from "../models/LiveCode.js";
-
-const newId = () => new mongoose.Types.ObjectId().toString();
+import User from "../models/User.js";
+import { startSocketServer, once, never, sleep } from "./helpers/socket.js";
+import { connectTestDb, clearTestDb, disconnectTestDb } from "./helpers/db.js";
+import { createUser, makeAdmin, bearer } from "./helpers/users.js";
 
 let server;
+let alice;
+let bob;
+let carol;
+let chat;
 
 beforeAll(async () => {
   await connectTestDb();
@@ -18,207 +26,392 @@ afterAll(async () => {
   await disconnectTestDb();
 });
 
-describe("socket relay", () => {
-  it("relays send-message to the other members of a chat but not the sender", async () => {
-    const chatId = newId();
-    const a = await server.client(newId());
-    const b = await server.client(newId());
+beforeEach(async () => {
+  await clearTestDb();
+  alice = await createUser();
+  bob = await createUser();
+  carol = await createUser();
+  chat = await Chat.create({ members: [alice.id, bob.id] });
+});
 
-    // No waiting between connecting and emitting: handlers are ready on connect.
-    a.emit("join-chat", chatId);
-    b.emit("join-chat", chatId);
+describe("handshake", () => {
+  it("accepts a valid token", async () => {
+    const { connected } = await server.tryConnect({ token: alice.token });
+    expect(connected).toBe(true);
+  });
+
+  it("refuses missing, malformed and forged tokens", async () => {
+    const forged = jwt.sign(
+      { userId: alice.id },
+      "some-other-secret-value-0123456789"
+    );
+    for (const auth of [
+      {},
+      { token: "" },
+      { token: "not-a-token" },
+      { token: forged },
+      { token: { $ne: null } },
+    ]) {
+      const { connected, error } = await server.tryConnect(auth);
+      expect(connected).toBe(false);
+      expect(error).toBe("Authentication failed");
+    }
+  });
+
+  it("refuses expired tokens and tokens of deleted users", async () => {
+    const expired = jwt.sign({ userId: alice.id }, process.env.JWT_SECRET, {
+      expiresIn: -10,
+    });
+    expect((await server.tryConnect({ token: expired })).connected).toBe(false);
+
+    await User.deleteOne({ _id: carol.id });
+    expect((await server.tryConnect({ token: carol.token })).connected).toBe(
+      false
+    );
+  });
+
+  it("refuses blocked users", async () => {
+    await User.updateOne({ _id: bob.id }, { isBlocked: true });
+    const { connected } = await server.tryConnect({ token: bob.token });
+    expect(connected).toBe(false);
+  });
+
+  it("ignores a user id supplied by the client", async () => {
+    const a = await server.client(alice, { query: { userId: bob.id } });
+    const b = await server.client(bob);
     await sleep(100);
+
+    a.emit("join-chat", chat.id);
+    b.emit("join-chat", chat.id);
+    await sleep(100);
+
+    // Typing events carry the verified identity.
+    const typing = once(b, "typing");
+    a.emit("typing", chat.id);
+    expect(await typing).toBe(alice.id);
+  });
+
+  it("disconnects a user who gets blocked while connected", async () => {
+    const admin = await makeAdmin(await createUser());
+    const target = await server.client(bob);
+    const closed = once(target, "disconnect");
+
+    const res = await request(app)
+      .patch(`/api/admin/block/${bob.id}`)
+      .set(bearer(admin.token));
+    expect(res.status).toBe(200);
+    await closed;
+    expect(target.connected).toBe(false);
+  });
+
+  it("announces verified presence to other users", async () => {
+    const a = await server.client(alice);
+    const online = once(a, "user-online");
+    await server.client(bob);
+    expect(await online).toBe(bob.id);
+  });
+});
+
+describe("chat events", () => {
+  it("relay messages between chat members only", async () => {
+    const a = await server.client(alice);
+    const b = await server.client(bob);
+    const c = await server.client(carol);
+
+    a.emit("join-chat", chat.id);
+    b.emit("join-chat", chat.id);
+    c.emit("join-chat", chat.id);
+    await sleep(150);
 
     const received = once(b, "receive-message");
     const echoed = never(a, "receive-message");
-    a.emit("send-message", { chatId, message: { text: "hello" } });
+    const outsider = never(c, "receive-message");
+    a.emit("send-message", { chatId: chat.id, message: { text: "hello" } });
 
     expect(await received).toEqual({ text: "hello" });
     expect(await echoed).toBe(true);
+    expect(await outsider).toBe(true);
   });
 
-  it("delivers group-message to everyone in the room, sender included", async () => {
-    const chatId = newId();
-    const a = await server.client(newId());
-    const b = await server.client(newId());
-    a.emit("join-chat", chatId);
-    b.emit("join-chat", chatId);
+  it("answers a non-member's join with an error", async () => {
+    const c = await server.client(carol);
+    const error = once(c, "socket-error");
+    c.emit("join-chat", chat.id);
+    expect(await error).toMatchObject({ event: "join-chat" });
+  });
+
+  it("refuses sends, group messages and typing from non-members", async () => {
+    const a = await server.client(alice);
+    const c = await server.client(carol);
+    a.emit("join-chat", chat.id);
     await sleep(100);
+
+    const heard = ["receive-message", "typing", "stop-typing"].map((event) =>
+      never(a, event, 500)
+    );
+    const errors = [];
+    c.on("socket-error", (e) => errors.push(e.event));
+
+    c.emit("send-message", { chatId: chat.id, message: { text: "x" } });
+    c.emit("group-message", { chatId: chat.id, message: { text: "x" } });
+    c.emit("typing", chat.id);
+    c.emit("stop-typing", chat.id);
+    await sleep(300);
+
+    expect((await Promise.all(heard)).every(Boolean)).toBe(true);
+    expect(errors.sort()).toEqual([
+      "group-message",
+      "send-message",
+      "stop-typing",
+      "typing",
+    ]);
+  });
+
+  it("delivers group messages to everyone in the room, sender included", async () => {
+    const a = await server.client(alice);
+    const b = await server.client(bob);
+    a.emit("join-chat", chat.id);
+    b.emit("join-chat", chat.id);
+    await sleep(150);
 
     const toA = once(a, "receive-message");
     const toB = once(b, "receive-message");
-    a.emit("group-message", { chatId, message: { text: "hi all" } });
-
+    a.emit("group-message", { chatId: chat.id, message: { text: "hi all" } });
     expect(await toA).toEqual({ text: "hi all" });
     expect(await toB).toEqual({ text: "hi all" });
   });
 
-  it("relays typing and stop-typing with the sender's id", async () => {
-    const chatId = newId();
-    const idA = newId();
-    const a = await server.client(idA);
-    const b = await server.client(newId());
-    a.emit("join-chat", chatId);
-    b.emit("join-chat", chatId);
-    await sleep(100);
+  it("do not let clients pick room names", async () => {
+    const c = await server.client(carol);
+    const errors = [];
+    c.on("socket-error", (e) => errors.push(e));
 
-    const typing = once(b, "typing");
-    a.emit("typing", chatId);
-    expect(await typing).toBe(idA);
+    c.emit("join-chat", `user:${alice.id}`);
+    c.emit("join-chat", `live:${chat.id}`);
+    c.emit("join-chat", alice.id); // a user id is not a chat
+    c.emit("join-chat", "any-room-name");
+    await sleep(300);
 
-    const stopped = once(b, "stop-typing");
-    a.emit("stop-typing", chatId);
-    expect(await stopped).toBe(idA);
+    expect(errors).toHaveLength(4);
+
+    const a = await server.client(alice);
+    const spy = never(c, "receive-notification");
+    a.emit("send-notification", { toUserId: alice.id, notification: { x: 1 } });
+    expect(await spy).toBe(true);
   });
 
-  it("announces presence to other connected users", async () => {
-    const a = await server.client(newId());
-    const newcomer = newId();
-    const online = once(a, "user-online");
-    await server.client(newcomer);
-    expect(await online).toBe(newcomer);
-  });
+  it("stop delivering to someone removed from a group", async () => {
+    const group = await Chat.create({
+      isGroupChat: true,
+      chatName: "team",
+      members: [alice.id, bob.id, carol.id],
+      admins: [alice.id],
+    });
+    const a = await server.client(alice);
+    const c = await server.client(carol);
+    a.emit("join-chat", group.id);
+    c.emit("join-chat", group.id);
+    await sleep(150);
 
-  it("disconnects clients without a usable user id", async () => {
-    const missing = server.anonymous();
-    await once(missing, "disconnect");
-    expect(missing.connected).toBe(false);
+    const removed = await request(app)
+      .patch("/api/group/remove")
+      .set(bearer(alice.token))
+      .send({ chatId: group.id, userId: carol.id });
+    expect(removed.status).toBe(200);
 
-    const malformed = server.anonymous({ userId: "not-an-id" });
-    await once(malformed, "disconnect");
-    expect(malformed.connected).toBe(false);
+    const silent = never(c, "receive-message");
+    a.emit("send-message", { chatId: group.id, message: { text: "secret" } });
+    expect(await silent).toBe(true);
+
+    const error = once(c, "socket-error");
+    c.emit("send-message", {
+      chatId: group.id,
+      message: { text: "still here?" },
+    });
+    expect(await error).toMatchObject({ event: "send-message" });
   });
 });
 
 describe("notifications", () => {
-  it("reaches the target user through their personal room", async () => {
-    const targetId = newId();
-    const sender = await server.client(newId());
-    const target = await server.client(targetId);
+  it("reach only the verified user's own room", async () => {
+    const a = await server.client(alice);
+    const b = await server.client(bob);
+    const c = await server.client(carol);
 
-    const received = once(target, "receive-notification");
-    sender.emit("send-notification", {
-      toUserId: targetId,
-      notification: { type: "follow" },
-    });
+    const received = once(b, "receive-notification");
+    const others = [
+      never(a, "receive-notification"),
+      never(c, "receive-notification"),
+    ];
 
-    expect(await received).toEqual({ type: "follow" });
+    await request(app)
+      .post(`/api/users/${bob.id}/follow`)
+      .set(bearer(alice.token));
+
+    expect(await received).toMatchObject({ type: "follow" });
+    expect(await Promise.all(others)).toEqual([true, true]);
   });
 
-  it("is delivered to every open connection of that user", async () => {
-    const targetId = newId();
-    const sender = await server.client(newId());
-    const tab1 = await server.client(targetId);
-    const tab2 = await server.client(targetId);
-
+  it("are delivered to every open connection of that user", async () => {
+    const tab1 = await server.client(bob);
+    const tab2 = await server.client(bob);
     const both = Promise.all([
       once(tab1, "receive-notification"),
       once(tab2, "receive-notification"),
     ]);
-    sender.emit("send-notification", {
-      toUserId: targetId,
-      notification: { type: "message" },
+
+    await request(app)
+      .post(`/api/users/${bob.id}/follow`)
+      .set(bearer(alice.token));
+    const [one, two] = await both;
+    expect(one.type).toBe("follow");
+    expect(two.type).toBe("follow");
+  });
+
+  it("cannot be sent by clients", async () => {
+    const a = await server.client(alice);
+    const b = await server.client(bob);
+    const silent = never(b, "receive-notification");
+    a.emit("send-notification", {
+      toUserId: bob.id,
+      notification: { type: "follow", content: "hello" },
     });
-    expect(await both).toEqual([{ type: "message" }, { type: "message" }]);
+    expect(await silent).toBe(true);
   });
 });
 
 describe("live code", () => {
-  it("stores live code and sends it to a later joiner", async () => {
-    const chatId = newId();
-    const userId = newId();
-    const a = await server.client(userId);
-
-    a.emit("code-change", {
-      chatId,
-      code: "console.log(1)",
-      language: "javascript",
-      fileName: "main",
-    });
-    await sleep(500);
-
-    const doc = await LiveCode.findOne({ chatId });
-    expect(doc.code).toBe("console.log(1)");
-    // The editor is the connected user, not whatever the payload claims.
-    expect(doc.updatedBy.toString()).toBe(userId);
-
-    const b = await server.client(newId());
-    const loaded = once(b, "load-code");
-    b.emit("join-live-code", { chatId });
-    expect((await loaded).code).toBe("console.log(1)");
+  const change = (chatId, code = "x = 1") => ({
+    chatId,
+    code,
+    language: "python",
+    fileName: "a.py",
   });
 
-  it("broadcasts code changes to others in the live room", async () => {
-    const chatId = newId();
-    const a = await server.client(newId());
-    const b = await server.client(newId());
-    a.emit("join-live-code", { chatId });
-    b.emit("join-live-code", { chatId });
+  it("is stored for members and sent to later joiners", async () => {
+    const a = await server.client(alice);
+    a.emit("code-change", change(chat.id, "print(1)"));
+    await sleep(400);
+
+    const doc = await LiveCode.findOne({ chatId: chat.id });
+    expect(doc.code).toBe("print(1)");
+    expect(doc.updatedBy.toString()).toBe(alice.id);
+
+    const b = await server.client(bob);
+    const loaded = once(b, "load-code");
+    b.emit("join-live-code", { chatId: chat.id });
+    expect((await loaded).code).toBe("print(1)");
+  });
+
+  it("is broadcast to other members in the live room", async () => {
+    const a = await server.client(alice);
+    const b = await server.client(bob);
+    a.emit("join-live-code", { chatId: chat.id });
+    b.emit("join-live-code", { chatId: chat.id });
     await sleep(200);
 
     const update = once(b, "code-update");
-    a.emit("code-change", {
-      chatId,
-      code: "x = 1",
-      language: "python",
-      fileName: "a.py",
-    });
+    a.emit("code-change", change(chat.id));
     expect(await update).toEqual({
       code: "x = 1",
       language: "python",
       fileName: "a.py",
     });
   });
-});
 
-describe("invalid input", () => {
-  it("answers a malformed live-code event with an error event and keeps running", async () => {
-    const a = await server.client(newId());
+  it("cannot be read or written by non-members", async () => {
+    await LiveCode.create({ chatId: chat.id, code: "private" });
+    const c = await server.client(carol);
 
-    const error = once(a, "socket-error");
-    a.emit("code-change", { chatId: "not-an-object-id", code: "x" });
-    expect(await error).toMatchObject({ event: "code-change" });
-
-    const joinError = once(a, "socket-error");
-    a.emit("join-live-code", { chatId: { $ne: null } });
+    const joinError = once(c, "socket-error");
+    const leaked = never(c, "load-code");
+    c.emit("join-live-code", { chatId: chat.id });
     expect(await joinError).toMatchObject({ event: "join-live-code" });
+    expect(await leaked).toBe(true);
 
-    // The server is still alive and handling events.
-    const chatId = newId();
-    a.emit("code-change", {
-      chatId,
-      code: "ok",
-      language: "js",
-      fileName: "f",
-    });
-    await sleep(300);
-    expect((await LiveCode.findOne({ chatId })).code).toBe("ok");
+    const writeError = once(c, "socket-error");
+    c.emit("code-change", change(chat.id, "overwritten"));
+    expect(await writeError).toMatchObject({ event: "code-change" });
+    expect((await LiveCode.findOne({ chatId: chat.id })).code).toBe("private");
   });
 
-  it("ignores malformed payloads for the other events", async () => {
-    const a = await server.client(newId());
+  it("answers unknown chats with an error and keeps running", async () => {
+    const a = await server.client(alice);
+    const error = once(a, "socket-error");
+    a.emit("code-change", change(new mongoose.Types.ObjectId().toString()));
+    expect(await error).toMatchObject({ event: "code-change" });
+
+    const bad = once(a, "socket-error");
+    a.emit("code-change", change("not-an-object-id"));
+    expect(await bad).toMatchObject({ event: "code-change" });
+
+    a.emit("code-change", change(chat.id, "still works"));
+    await sleep(300);
+    expect((await LiveCode.findOne({ chatId: chat.id })).code).toBe(
+      "still works"
+    );
+  });
+});
+
+describe("payload limits", () => {
+  it("rejects oversized messages and code", async () => {
+    const a = await server.client(alice);
+    a.emit("join-chat", chat.id);
+    await sleep(100);
+
+    const errors = [];
+    a.on("socket-error", (e) => errors.push(e.event));
+    a.emit("send-message", {
+      chatId: chat.id,
+      message: { text: "x".repeat(20 * 1024) },
+    });
+    a.emit("code-change", {
+      chatId: chat.id,
+      code: "x".repeat(100001),
+    });
+    await sleep(300);
+
+    expect(errors.sort()).toEqual(["code-change", "send-message"]);
+    expect(await LiveCode.countDocuments()).toBe(0);
+  });
+
+  it("closes connections that send packets beyond the transport limit", async () => {
+    const a = await server.client(alice);
+    const closed = once(a, "disconnect", 5000);
+    a.emit("send-message", {
+      chatId: chat.id,
+      message: { text: "x".repeat(700 * 1024) },
+    });
+    await closed;
+    expect(a.connected).toBe(false);
+  });
+
+  it("ignores malformed payloads for every event", async () => {
+    const a = await server.client(alice);
     const errors = [];
     a.on("socket-error", (e) => errors.push(e.event));
 
-    a.emit("join-chat", "nope");
+    a.emit("join-chat", { $ne: null });
     a.emit("send-message", null);
     a.emit("send-message", { chatId: "nope", message: {} });
     a.emit("group-message", "text");
     a.emit("typing", 42);
-    a.emit("send-notification", { toUserId: "nope", notification: {} });
+    a.emit("stop-typing");
+    a.emit("join-live-code", { chatId: { $ne: null } });
     a.emit("code-change");
-    await sleep(400);
+    await sleep(500);
 
-    expect(errors.length).toBeGreaterThanOrEqual(6);
+    expect(errors).toHaveLength(8);
 
-    // Still working afterwards.
-    const chatId = newId();
-    const b = await server.client(newId());
-    a.emit("join-chat", chatId);
-    b.emit("join-chat", chatId);
-    await sleep(100);
+    const b = await server.client(bob);
+    a.emit("join-chat", chat.id);
+    b.emit("join-chat", chat.id);
+    await sleep(150);
     const received = once(b, "receive-message");
-    a.emit("send-message", { chatId, message: { text: "still here" } });
+    a.emit("send-message", {
+      chatId: chat.id,
+      message: { text: "still here" },
+    });
     expect(await received).toEqual({ text: "still here" });
   });
 });

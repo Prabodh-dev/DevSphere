@@ -5,6 +5,7 @@ import User from "../models/User.js";
 import { badRequest, forbidden, notFound } from "../utils/httpError.js";
 import { chatView } from "../utils/serializers.js";
 import { notifyUser } from "../utils/notify.js";
+import { chatRoom, liveCodeRoom, userRoom } from "../utils/rooms.js";
 
 const sameId = (a, b) => String(a) === String(b);
 
@@ -103,6 +104,12 @@ export const removeFromGroup = async (req, res) => {
   chat.members = chat.members.filter((id) => !sameId(id, userId));
   chat.admins = chat.admins.filter((id) => !sameId(id, userId));
   await chat.save();
+
+  // Stop delivering this chat to the removed member's open connections.
+  req.app
+    .get("io")
+    ?.in(userRoom(userId))
+    .socketsLeave([chatRoom(chat.id), liveCodeRoom(chat.id)]);
 
   res.status(200).json({ message: "User removed" });
 };

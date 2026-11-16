@@ -37,4 +37,6 @@ const chatSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+chatSchema.index({ members: 1 });
+
 export default mongoose.model("Chat", chatSchema);

@@ -1,48 +1,47 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import mongoose from "mongoose";
+import Chat from "../models/Chat.js";
 
 // Nothing listens on this port, so Redis is unreachable for the whole file.
 process.env.REDIS_URL = "redis://127.0.0.1:1";
 
 const { startSocketServer, once, sleep } = await import("./helpers/socket.js");
-
-const newId = () => new mongoose.Types.ObjectId().toString();
+const { connectTestDb, clearTestDb, disconnectTestDb } =
+  await import("./helpers/db.js");
+const { createUser } = await import("./helpers/users.js");
 
 let server;
+let alice;
+let bob;
+let chat;
 
 beforeAll(async () => {
+  await connectTestDb();
+  await clearTestDb();
+  alice = await createUser();
+  bob = await createUser();
+  chat = await Chat.create({ members: [alice.id, bob.id] });
   server = await startSocketServer();
 });
 
 afterAll(async () => {
   await server.close();
+  await disconnectTestDb();
 });
 
 describe("socket server without Redis", () => {
   it("still accepts connections and relays messages", async () => {
-    const chatId = newId();
-    const a = await server.client(newId());
-    const b = await server.client(newId());
+    const a = await server.client(alice);
+    const b = await server.client(bob);
 
-    a.emit("join-chat", chatId);
-    b.emit("join-chat", chatId);
-    await sleep(100);
+    a.emit("join-chat", chat.id);
+    b.emit("join-chat", chat.id);
+    await sleep(150);
 
     const received = once(b, "receive-message");
-    a.emit("send-message", { chatId, message: { text: "no redis needed" } });
-    expect(await received).toEqual({ text: "no redis needed" });
-  });
-
-  it("still delivers notifications", async () => {
-    const targetId = newId();
-    const sender = await server.client(newId());
-    const target = await server.client(targetId);
-
-    const received = once(target, "receive-notification");
-    sender.emit("send-notification", {
-      toUserId: targetId,
-      notification: { type: "group" },
+    a.emit("send-message", {
+      chatId: chat.id,
+      message: { text: "no redis needed" },
     });
-    expect(await received).toEqual({ type: "group" });
+    expect(await received).toEqual({ text: "no redis needed" });
   });
 });
