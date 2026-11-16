@@ -328,3 +328,63 @@ describe("005-merge-duplicate-live-code", () => {
     expect(left.map((d) => d.code)).toEqual(["second"]);
   });
 });
+
+describe("006-report-status", () => {
+  const name = "006-report-status";
+
+  it("marks old reports open and resolves repeat reports", async () => {
+    const [reporter, other, target, otherTarget] = [id(), id(), id(), id()];
+    const [first, repeat, third] = [id(), id(), id()];
+    await db.collection("reports").insertMany([
+      {
+        _id: first,
+        reportedBy: reporter,
+        targetType: "message",
+        targetId: target,
+        reason: "a",
+        createdAt: new Date("2024-01-01"),
+      },
+      {
+        _id: repeat,
+        reportedBy: reporter,
+        targetType: "message",
+        targetId: target,
+        reason: "b",
+        createdAt: new Date("2024-02-01"),
+      },
+      {
+        _id: third,
+        reportedBy: other,
+        targetType: "message",
+        targetId: target,
+        reason: "c",
+        createdAt: new Date("2024-03-01"),
+      },
+      {
+        reportedBy: reporter,
+        targetType: "status",
+        targetId: otherTarget,
+        reason: "d",
+        status: "resolved",
+      },
+    ]);
+
+    expect((await dryRun(name)).changed).toBe(4);
+    expect(
+      await db.collection("reports").countDocuments({ status: "open" })
+    ).toBe(0);
+
+    expect((await runTwice(name)).changed).toBe(4);
+
+    const byId = async (_id) =>
+      (await db.collection("reports").findOne({ _id })).status;
+    expect(await byId(first)).toBe("open");
+    expect(await byId(repeat)).toBe("resolved");
+    expect(await byId(third)).toBe("open");
+    expect(
+      await db
+        .collection("reports")
+        .countDocuments({ status: "resolved", targetType: "status" })
+    ).toBe(1);
+  });
+});

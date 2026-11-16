@@ -111,9 +111,6 @@ describe("admin removal of reported content", () => {
       (await as(admin).delete(`/api/admin/remove/other/${msg.id}`)).status
     ).toBe(400);
     expect(
-      (await as(admin).delete(`/api/admin/remove/user/${msg.id}`)).status
-    ).toBe(400);
-    expect(
       (await as(admin).delete("/api/admin/remove/message/nope")).status
     ).toBe(400);
     expect(
@@ -157,8 +154,13 @@ describe("admin removal of reported content", () => {
     const res = await as(admin).delete(`/api/admin/remove/message/${msg.id}`);
     expect(res.status).toBe(200);
     expect(await Message.findById(msg.id)).toBeNull();
-    expect(await Report.countDocuments({ targetId: msg.id })).toBe(0);
-    expect(await Report.countDocuments({ targetId: other.id })).toBe(1);
+    // The reports stay for the record, marked as resolved.
+    expect(
+      await Report.countDocuments({ targetId: msg.id, status: "resolved" })
+    ).toBe(2);
+    expect(
+      await Report.countDocuments({ targetId: other.id, status: "open" })
+    ).toBe(1);
   });
 
   it("removes a status and its report", async () => {
@@ -177,7 +179,7 @@ describe("admin removal of reported content", () => {
     const res = await as(admin).delete(`/api/admin/remove/status/${status.id}`);
     expect(res.status).toBe(200);
     expect(await Status.findById(status.id)).toBeNull();
-    expect(await Report.countDocuments()).toBe(0);
+    expect(await Report.countDocuments({ status: "resolved" })).toBe(1);
   });
 });
 

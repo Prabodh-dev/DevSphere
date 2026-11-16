@@ -180,8 +180,8 @@ describe("reports", () => {
   it("files a report and validates input", async () => {
     const report = (body) => as(alice).post("/api/report").send(body);
     const ok = await report({
-      targetType: "message",
-      targetId: missingId(),
+      targetType: "user",
+      targetId: bob.id,
       reason: "spam",
     });
     expect(ok.status).toBe(201);

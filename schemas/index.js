@@ -126,7 +126,7 @@ export const reportBody = z.object({
   reason: text(1000),
 });
 export const removeParams = z.object({
-  type: z.enum(["status", "message"]),
+  type: z.enum(["status", "message", "user"]),
   id: objectId,
 });
 
@@ -134,4 +134,8 @@ export const removeParams = z.object({
 export const highlightBody = z.object({
   code: z.string().min(1).max(20000),
   language: text(50).optional(),
+});
+
+export const reportsQuery = z.object({
+  status: z.enum(["open", "resolved", "all"]).default("open"),
 });
