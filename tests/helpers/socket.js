@@ -4,16 +4,28 @@ import { setupSocketIO } from "../../socket.js";
 
 export async function startSocketServer() {
   const server = http.createServer();
-  setupSocketIO(server);
+  const io = setupSocketIO(server);
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address();
   const clients = [];
 
   return {
     url: `http://127.0.0.1:${port}`,
-    client(userId) {
+    // Connects a client and resolves once the connection is established.
+    async client(userId) {
       const socket = connect(`http://127.0.0.1:${port}`, {
         query: userId ? { userId } : {},
+        forceNew: true,
+        reconnection: false,
+      });
+      clients.push(socket);
+      await new Promise((resolve) => socket.once("connect", resolve));
+      return socket;
+    },
+    // For connections the server is expected to reject.
+    anonymous(query = {}) {
+      const socket = connect(`http://127.0.0.1:${port}`, {
+        query,
         forceNew: true,
         reconnection: false,
       });
@@ -22,7 +34,8 @@ export async function startSocketServer() {
     },
     async close() {
       clients.forEach((c) => c.close());
-      await new Promise((resolve) => server.close(resolve));
+      io.close();
+      await new Promise((resolve) => server.close(() => resolve()));
     },
   };
 }
