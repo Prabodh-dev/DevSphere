@@ -1,7 +1,6 @@
 // controllers/groupController.js
 
 import Chat from "../models/Chat.js";
-import User from "../models/User.js";
 
 // Create group chat
 export const createGroupChat = async (req, res) => {
