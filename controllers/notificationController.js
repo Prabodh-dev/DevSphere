@@ -1,36 +1,39 @@
 // controllers/notificationController.js
 import Notification from "../models/Notification.js";
+import { badRequest } from "../utils/httpError.js";
+import {
+  optionalString,
+  requireObjectId,
+  requireOneOf,
+} from "../utils/validate.js";
+
+const NOTIFICATION_TYPES = ["message", "follow", "group", "status"];
 
 export const getNotifications = async (req, res) => {
-  try {
-    const notifications = await Notification.find({ user: req.user._id })
-      .populate("fromUser", "username avatar")
-      .sort({ createdAt: -1 });
+  const notifications = await Notification.find({ user: req.user._id })
+    .populate("fromUser", "username avatar")
+    .sort({ createdAt: -1 });
 
-    res.status(200).json(notifications);
-  } catch (err) {
-    res
-      .status(500)
-      .json({ message: "Failed to fetch notifications", error: err.message });
-  }
+  res.status(200).json(notifications);
 };
 
 export const createNotification = async (req, res) => {
-  try {
-    const { user, type, content, fromUser, chatId } = req.body;
+  const body = req.body ?? {};
+  if (typeof body !== "object") throw badRequest("Invalid body");
 
-    const notification = await Notification.create({
-      user,
-      type,
-      content,
-      fromUser,
-      chatId,
-    });
-
-    res.status(201).json(notification);
-  } catch (err) {
-    res
-      .status(500)
-      .json({ message: "Failed to create notification", error: err.message });
+  const data = {
+    user: requireObjectId(body.user, "user"),
+    type: requireOneOf(body.type, NOTIFICATION_TYPES, "type"),
+    content: optionalString(body.content, "content", { max: 500 }),
+  };
+  if (body.fromUser !== undefined) {
+    data.fromUser = requireObjectId(body.fromUser, "fromUser");
   }
+  if (body.chatId !== undefined) {
+    data.chatId = requireObjectId(body.chatId, "chatId");
+  }
+
+  const notification = await Notification.create(data);
+
+  res.status(201).json(notification);
 };

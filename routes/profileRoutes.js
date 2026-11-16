@@ -16,7 +16,6 @@ router.post(
   upload.single("avatar"),
   createOrUpdateProfile
 );
-router.post("/", authMiddleware, createOrUpdateProfile);
 router.get("/me", authMiddleware, getMyProfile);
 router.get("/:userId", getUserProfileById);
 

@@ -1,5 +1,18 @@
 import User from "../models/User.js";
 import Report from "../models/Report.js";
+import Status from "../models/Status.js";
+import Message from "../models/Message.js";
+import { notFound } from "../utils/httpError.js";
+import { requireObjectId, requireOneOf } from "../utils/validate.js";
+
+const setBlocked = async (id, isBlocked) => {
+  const userId = requireObjectId(id, "user id");
+  const user = await User.findById(userId);
+  if (!user) throw notFound("User not found");
+
+  user.isBlocked = isBlocked;
+  await user.save();
+};
 
 export const getAllUsers = async (req, res) => {
   const users = await User.find().select("-password");
@@ -7,22 +20,12 @@ export const getAllUsers = async (req, res) => {
 };
 
 export const blockUser = async (req, res) => {
-  const userId = req.params.id;
-  const user = await User.findById(userId);
-  if (!user) return res.status(404).json({ message: "User not found" });
-
-  user.isBlocked = true;
-  await user.save();
+  await setBlocked(req.params.id, true);
   res.status(200).json({ message: "User blocked" });
 };
 
 export const unblockUser = async (req, res) => {
-  const userId = req.params.id;
-  const user = await User.findById(userId);
-  if (!user) return res.status(404).json({ message: "User not found" });
-
-  user.isBlocked = false;
-  await user.save();
+  await setBlocked(req.params.id, false);
   res.status(200).json({ message: "User unblocked" });
 };
 
@@ -33,19 +36,12 @@ export const getReports = async (req, res) => {
 
 export const deleteReportedItem = async (req, res) => {
   const { type, id } = req.params;
+  requireOneOf(type, ["status", "message"], "type");
+  requireObjectId(id, "id");
 
-  try {
-    if (type === "status") {
-      await import("../models/Status.js").then(({ default: Status }) =>
-        Status.findByIdAndDelete(id)
-      );
-    } else if (type === "message") {
-      await import("../models/Message.js").then(({ default: Message }) =>
-        Message.findByIdAndDelete(id)
-      );
-    }
-    res.status(200).json({ message: `${type} deleted` });
-  } catch (err) {
-    res.status(500).json({ message: "Delete failed", error: err.message });
-  }
+  const Model = type === "status" ? Status : Message;
+  const deleted = await Model.findByIdAndDelete(id);
+  if (!deleted) throw notFound(`${type} not found`);
+
+  res.status(200).json({ message: `${type} deleted` });
 };

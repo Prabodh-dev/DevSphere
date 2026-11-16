@@ -1,59 +1,65 @@
-import dotenv from "dotenv";
-dotenv.config();
-
-import express from "express";
+import "dotenv/config";
 import mongoose from "mongoose";
-import cors from "cors";
 import http from "http";
+import app from "./app.js";
 import { setupSocketIO } from "./socket.js";
+import { closeRedis } from "./config/redis.js";
+import { getMissingEnv } from "./config/env.js";
 
-const app = express();
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Import routes
-import authRoutes from "./routes/authRoutes.js";
-import profileRoutes from "./routes/profileRoutes.js";
-import userRoutes from "./routes/userRoutes.js";
-import chatRoutes from "./routes/chatRoutes.js";
-import groupRoutes from "./routes/groupRoutes.js";
-import statusRoutes from "./routes/statusRoutes.js";
-import snippetRoutes from "./routes/snippetRoutes.js";
-import liveCodeRoutes from "./routes/liveCodeRoutes.js";
-import notificationRoutes from "./routes/notificationRoutes.js";
-import adminRoutes from "./routes/adminRoutes.js";
-import reportRoutes from "./routes/reportRoutes.js";
-
-// Use routes
-app.use("/api/auth", authRoutes);
-app.use("/api/profile", profileRoutes);
-app.use("/api/users", userRoutes);
-app.use("/api/chat", chatRoutes);
-app.use("/api/group", groupRoutes);
-app.use("/api/status", statusRoutes);
-app.use("/api/snippets", snippetRoutes);
-app.use("/api/live-code", liveCodeRoutes);
-app.use("/api/notifications", notificationRoutes);
-app.use("/api/admin", adminRoutes);
-app.use("/api/report", reportRoutes);
-
-// Create HTTP server and init socket
-const server = http.createServer(app);
-
-try {
-  setupSocketIO(server);
-  console.log(" Socket.IO initialized");
-} catch (err) {
-  console.error(" Socket.IO setup failed", err);
+const missing = getMissingEnv();
+if (missing.length > 0) {
+  console.error(
+    `Missing required environment variables: ${missing.join(", ")}`
+  );
+  process.exit(1);
 }
 
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log(" MongoDB Connected");
-    console.log(" Spanning in to DevSphere server");
-    const PORT = process.env.PORT || 5000;
-    server.listen(PORT, () => console.log(` Server running on port ${PORT}`));
-  })
-  .catch((err) => console.error(" MongoDB Connection Error:", err));
+const PORT = process.env.PORT || 5000;
+const server = http.createServer(app);
+let io;
+let shuttingDown = false;
+
+async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`${signal} received, shutting down`);
+
+  // Do not hang forever if a connection refuses to close.
+  setTimeout(() => process.exit(1), 10000).unref();
+
+  try {
+    await new Promise((resolve) => {
+      io.close(resolve);
+      server.closeIdleConnections?.();
+    });
+    await closeRedis();
+    await mongoose.connection.close();
+    process.exit(0);
+  } catch (err) {
+    console.error("Error during shutdown:", err.message);
+    process.exit(1);
+  }
+}
+
+async function start() {
+  await mongoose.connect(process.env.MONGO_URI, {
+    serverSelectionTimeoutMS: 5000,
+  });
+  console.log("MongoDB connected");
+
+  mongoose.connection.on("error", (err) => {
+    console.error("MongoDB error:", err.message);
+  });
+
+  io = setupSocketIO(server);
+  await new Promise((resolve) => server.listen(PORT, resolve));
+  console.log(`Server running on port ${PORT}`);
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+
+start().catch((err) => {
+  console.error("Failed to start server:", err.message);
+  process.exit(1);
+});

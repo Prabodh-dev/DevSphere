@@ -1,18 +1,23 @@
-# Use official Node.js LTS image
-FROM node:20-alpine
+FROM node:22-alpine
 
-# Set working directory
+ENV NODE_ENV=production
+
+# pnpm is provided through corepack. It installs the exact version named in
+# the "packageManager" field of package.json, so the version lives in one place.
+RUN corepack enable
+
 WORKDIR /usr/src/app
+RUN chown node:node /usr/src/app
+USER node
 
-# Install dependencies
-COPY package*.json ./
-RUN npm install --production
+COPY --chown=node:node package.json pnpm-lock.yaml ./
+RUN corepack install && pnpm install --frozen-lockfile --prod
 
-# Copy source code
-COPY . .
+COPY --chown=node:node . .
 
-# Expose the port the app runs on
 EXPOSE 5000
 
-# Start the application
-CMD ["node", "server.js"] 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 5000) + '/healthz').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+
+CMD ["node", "server.js"]

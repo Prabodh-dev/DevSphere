@@ -1,30 +1,63 @@
 // config/redis.js
+// Redis is optional: it is only used for online-presence tracking, so the
+// app keeps working (and keeps trying to reconnect) when it is unavailable.
 import { createClient } from "redis";
 import dotenv from "dotenv";
 dotenv.config();
 
-let redisClient;
+let redisClient = null;
+let initialised = false;
+let warned = false;
 
-export const initRedis = async () => {
-  if (!redisClient) {
-    redisClient = createClient({
-      url: process.env.REDIS_URL,
-      socket: {
-        reconnectStrategy: (retries) => Math.min(retries * 100, 3000),
-      },
-    });
+// Starts connecting in the background and returns immediately.
+export const initRedis = () => {
+  if (initialised) return redisClient;
+  initialised = true;
 
-    redisClient.on("error", (err) => {
-      console.error("❌ Redis Client Error:", err.message);
-    });
-
-    try {
-      await redisClient.connect();
-      console.log("✅ Connected to Upstash Redis");
-    } catch (err) {
-      console.error("❌ Redis Connection Failed:", err.message);
-    }
+  const url = process.env.REDIS_URL;
+  if (!url) {
+    console.warn("REDIS_URL is not set, online presence tracking is disabled");
+    return null;
   }
+
+  redisClient = createClient({
+    url,
+    socket: {
+      reconnectStrategy: (retries) => Math.min(retries * 100, 3000),
+    },
+  });
+
+  redisClient.on("error", (err) => {
+    // Log once per outage instead of on every reconnect attempt.
+    if (!warned) {
+      console.warn("Redis unavailable, continuing without it:", err.message);
+      warned = true;
+    }
+  });
+  redisClient.on("ready", () => {
+    warned = false;
+    console.log("Connected to Redis");
+  });
+
+  redisClient.connect().catch((err) => {
+    console.warn("Redis connection failed:", err.message);
+  });
+
+  return redisClient;
 };
 
-export const getRedisClient = () => redisClient;
+// Returns the client only while it is connected.
+export const getRedisClient = () =>
+  redisClient && redisClient.isReady ? redisClient : null;
+
+export const closeRedis = async () => {
+  if (!redisClient) return;
+  try {
+    if (redisClient.isReady) await redisClient.quit();
+    else redisClient.destroy();
+  } catch (err) {
+    console.warn("Error while closing Redis:", err.message);
+  }
+  redisClient = null;
+  initialised = false;
+};

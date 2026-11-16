@@ -1,0 +1,213 @@
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  beforeEach,
+  afterAll,
+} from "vitest";
+import request from "supertest";
+import mongoose from "mongoose";
+
+vi.mock("../utils/s3Utils.js", () => ({
+  uploadToS3: vi.fn().mockResolvedValue("https://example.test/status/a.png"),
+}));
+
+const { default: app } = await import("../app.js");
+const { default: User } = await import("../models/User.js");
+const { default: Message } = await import("../models/Message.js");
+const { connectTestDb, clearTestDb, disconnectTestDb } =
+  await import("./helpers/db.js");
+const { createUser, bearer } = await import("./helpers/users.js");
+
+const missingId = () => new mongoose.Types.ObjectId().toString();
+
+let alice;
+let bob;
+
+beforeAll(connectTestDb);
+afterAll(disconnectTestDb);
+beforeEach(async () => {
+  await clearTestDb();
+  alice = await createUser();
+  bob = await createUser();
+});
+
+const as = (user) => ({
+  get: (path) => request(app).get(path).set(bearer(user.token)),
+  post: (path) => request(app).post(path).set(bearer(user.token)),
+  patch: (path) => request(app).patch(path).set(bearer(user.token)),
+  delete: (path) => request(app).delete(path).set(bearer(user.token)),
+});
+
+describe("users", () => {
+  it("follows and unfollows", async () => {
+    const follow = await as(alice).post(`/api/users/${bob.id}/follow`);
+    expect(follow.status).toBe(200);
+
+    const followers = await as(alice).get(`/api/users/${bob.id}/followers`);
+    expect(followers.body.map((u) => u.username)).toEqual([alice.username]);
+    const following = await as(alice).get(`/api/users/${alice.id}/following`);
+    expect(following.body.map((u) => u.username)).toEqual([bob.username]);
+
+    const again = await as(alice).post(`/api/users/${bob.id}/follow`);
+    expect(again.status).toBe(400);
+
+    const unfollow = await as(alice).post(`/api/users/${bob.id}/unfollow`);
+    expect(unfollow.status).toBe(200);
+    expect((await User.findById(bob.id)).followers).toHaveLength(0);
+  });
+
+  it("returns 400 for invalid ids and 404 for unknown users", async () => {
+    expect((await as(alice).post("/api/users/nope/follow")).status).toBe(400);
+    expect((await as(alice).get("/api/users/nope/followers")).status).toBe(400);
+    expect(
+      (await as(alice).post(`/api/users/${missingId()}/follow`)).status
+    ).toBe(404);
+    expect(
+      (await as(alice).get(`/api/users/${missingId()}/following`)).status
+    ).toBe(404);
+    expect((await as(alice).post(`/api/users/${alice.id}/follow`)).status).toBe(
+      400
+    );
+  });
+
+  it("updates tags and searches by tag", async () => {
+    const res = await as(alice)
+      .patch("/api/users/me/tags")
+      .send({ tags: ["go"] });
+    expect(res.status).toBe(200);
+
+    const found = await as(bob).get("/api/users?tag=go");
+    expect(found.body.map((u) => u.username)).toEqual([alice.username]);
+  });
+
+  it("validates tags and the search query", async () => {
+    const patch = (body) => as(alice).patch("/api/users/me/tags").send(body);
+    expect((await patch({ tags: "go" })).status).toBe(400);
+    expect((await patch({ tags: [1, 2] })).status).toBe(400);
+    expect((await as(bob).get("/api/users")).status).toBe(400);
+    expect((await as(bob).get("/api/users?tag=a&tag=b")).status).toBe(400);
+  });
+});
+
+describe("status", () => {
+  const post = (user) => as(user).post("/api/status");
+
+  it("posts a text status and shows it in the feed", async () => {
+    const res = await post(alice).send({ type: "text", content: "hello" });
+    expect(res.status).toBe(201);
+
+    const feed = await as(alice).get("/api/status/feed");
+    expect(feed.body.count).toBe(1);
+    expect(feed.body.statuses[0].content).toBe("hello");
+  });
+
+  it("uploads image statuses", async () => {
+    const res = await post(alice)
+      .field("type", "image")
+      .attach("media", Buffer.from("img"), "a.png");
+    expect(res.status).toBe(201);
+    expect(res.body.status.content).toBe("https://example.test/status/a.png");
+  });
+
+  it("validates type, content and files", async () => {
+    expect((await post(alice).send({})).status).toBe(400);
+    expect((await post(alice).send({ type: "gif", content: "x" })).status).toBe(
+      400
+    );
+    expect((await post(alice).send({ type: "text" })).status).toBe(400);
+    expect((await post(alice).send({ type: "text", content: {} })).status).toBe(
+      400
+    );
+    expect((await post(alice).send({ type: "image" })).status).toBe(400);
+  });
+});
+
+describe("notifications", () => {
+  it("creates and lists notifications", async () => {
+    const created = await as(alice)
+      .post("/api/notifications")
+      .send({ user: bob.id, type: "follow", fromUser: alice.id });
+    expect(created.status).toBe(201);
+
+    const list = await as(bob).get("/api/notifications");
+    expect(list.body).toHaveLength(1);
+  });
+
+  it("validates the body", async () => {
+    const create = (body) => as(alice).post("/api/notifications").send(body);
+    expect((await create({ type: "follow" })).status).toBe(400);
+    expect((await create({ user: "x", type: "follow" })).status).toBe(400);
+    expect((await create({ user: bob.id, type: "other" })).status).toBe(400);
+    expect(
+      (await create({ user: bob.id, type: "follow", chatId: "x" })).status
+    ).toBe(400);
+  });
+});
+
+describe("reports", () => {
+  it("files a report and validates input", async () => {
+    const report = (body) => as(alice).post("/api/report").send(body);
+    const ok = await report({
+      targetType: "message",
+      targetId: missingId(),
+      reason: "spam",
+    });
+    expect(ok.status).toBe(201);
+
+    expect((await report({})).status).toBe(400);
+    expect(
+      (await report({ targetType: "x", targetId: missingId(), reason: "r" }))
+        .status
+    ).toBe(400);
+    expect(
+      (await report({ targetType: "user", targetId: "bad", reason: "r" }))
+        .status
+    ).toBe(400);
+  });
+});
+
+describe("snippets", () => {
+  it("highlights code and validates the body", async () => {
+    const ok = await request(app)
+      .post("/api/snippets/highlight")
+      .send({ code: "const a = 1;", language: "javascript" });
+    expect(ok.status).toBe(200);
+    expect(ok.body.highlighted).toContain("hljs-");
+
+    const unknown = await request(app)
+      .post("/api/snippets/highlight")
+      .send({ code: "hello", language: "not-a-language" });
+    expect(unknown.status).toBe(200);
+
+    const bad = await request(app).post("/api/snippets/highlight").send({});
+    expect(bad.status).toBe(400);
+    expect(Object.keys(bad.body)).toEqual(["message"]);
+  });
+});
+
+describe("admin helpers", () => {
+  it("validates ids and removal types", async () => {
+    const msg = await Message.create({ text: "x" });
+
+    expect((await as(alice).patch("/api/admin/block/nope")).status).toBe(400);
+    expect(
+      (await as(alice).patch(`/api/admin/block/${missingId()}`)).status
+    ).toBe(404);
+    expect(
+      (await as(alice).delete(`/api/admin/remove/other/${msg.id}`)).status
+    ).toBe(400);
+    expect(
+      (await as(alice).delete("/api/admin/remove/message/nope")).status
+    ).toBe(400);
+    expect(
+      (await as(alice).delete(`/api/admin/remove/message/${missingId()}`))
+        .status
+    ).toBe(404);
+    expect(
+      (await as(alice).delete(`/api/admin/remove/message/${msg.id}`)).status
+    ).toBe(200);
+  });
+});
