@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 import Session from "../models/Session.js";
+import User from "../models/User.js";
+import { forbidden, unauthorized } from "./httpError.js";
 import { getRefreshTtlDays } from "../config/env.js";
 import { newRefreshToken, hashToken } from "./tokens.js";
 import { sessionRoom } from "./rooms.js";
@@ -56,4 +58,100 @@ export async function revokeFamily(familyId, io) {
   );
   closeSessionSockets(io, [familyId]);
   return result.modifiedCount > 0;
+}
+
+// Revokes every login of a user, optionally keeping one.
+export async function revokeAllForUser(userId, io, { exceptFamilyId } = {}) {
+  const filter = { userId, revokedAt: null };
+  if (exceptFamilyId)
+    filter.familyId = mongoose.trusted({ $ne: exceptFamilyId });
+
+  const families = await Session.distinct("familyId", filter);
+  await Session.updateMany(filter, { revokedAt: new Date() });
+  closeSessionSockets(io, families);
+}
+
+// Active logins of a user, newest first.
+export async function listActiveSessions(userId) {
+  return Session.find({
+    userId,
+    revokedAt: null,
+    expiresAt: mongoose.trusted({ $gt: new Date() }),
+  })
+    .sort({ familyStartedAt: -1 })
+    .select("familyId familyStartedAt createdAt userAgent");
+}
+
+// A repeat of an already rotated token inside this window is treated as a
+// parallel request, not as theft.
+export const REUSE_GRACE_MS = 10 * 1000;
+
+const invalid = () => unauthorized("Invalid refresh token");
+
+// A token that was already used or revoked was presented. If it was rotated
+// away a while ago, someone else may hold a copy, so the login is ended.
+async function handleUsedToken(session, io) {
+  const rotatedAgo = Date.now() - session.revokedAt.getTime();
+  if (session.replacedBy && rotatedAgo > REUSE_GRACE_MS) {
+    await revokeFamily(session.familyId, io);
+  }
+  throw invalid();
+}
+
+// Exchanges a refresh token for a new one in the same login. Returns the new
+// refresh token, the login id and the user.
+export async function rotateSession(rawToken, req, io) {
+  const tokenHash = hashToken(rawToken);
+  const session = await Session.findOne({ tokenHash });
+  if (!session) throw invalid();
+
+  if (session.revokedAt) return handleUsedToken(session, io);
+  if (session.expiresAt <= new Date()) throw invalid();
+
+  const user = await User.findById(session.userId).select("isBlocked");
+  if (!user) throw invalid();
+  if (user.isBlocked) {
+    await revokeAllForUser(session.userId, io);
+    throw forbidden("Account is blocked");
+  }
+
+  // Only one request can claim a token, even when several arrive together.
+  const now = new Date();
+  const nextId = new mongoose.Types.ObjectId();
+  const claimed = await Session.findOneAndUpdate(
+    {
+      _id: session._id,
+      revokedAt: null,
+      expiresAt: mongoose.trusted({ $gt: now }),
+    },
+    { revokedAt: now, replacedBy: nextId }
+  );
+  if (!claimed) {
+    const latest = await Session.findOne({ tokenHash });
+    if (latest?.revokedAt) return handleUsedToken(latest, io);
+    throw invalid();
+  }
+
+  const refreshToken = newRefreshToken();
+  await Session.create({
+    _id: nextId,
+    userId: session.userId,
+    familyId: session.familyId,
+    familyStartedAt: session.familyStartedAt,
+    tokenHash: hashToken(refreshToken),
+    expiresAt: new Date(now.getTime() + getRefreshTtlDays() * DAY_MS),
+    ...clientInfo(req),
+  });
+
+  return {
+    refreshToken,
+    familyId: session.familyId,
+    userId: session.userId.toString(),
+  };
+}
+
+// Looks up the login a refresh token belongs to (used or not).
+export async function findFamilyByToken(rawToken) {
+  const session = await Session.findOne({ tokenHash: hashToken(rawToken) });
+  return session?.familyId;
 }

@@ -5,6 +5,7 @@ import Message from "../models/Message.js";
 import { badRequest, notFound } from "../utils/httpError.js";
 import { deleteMedia } from "../utils/s3Utils.js";
 import { userRoom } from "../utils/rooms.js";
+import { revokeAllForUser } from "../utils/sessions.js";
 
 const setBlocked = async (userId, isBlocked, actingUserId, io) => {
   if (isBlocked && userId === actingUserId.toString()) {
@@ -16,8 +17,11 @@ const setBlocked = async (userId, isBlocked, actingUserId, io) => {
   user.isBlocked = isBlocked;
   await user.save();
 
-  // Close any open connections of a blocked user.
-  if (isBlocked) io?.in(userRoom(userId)).disconnectSockets(true);
+  // A blocked user is signed out everywhere and loses open connections.
+  if (isBlocked) {
+    await revokeAllForUser(user._id, io);
+    io?.in(userRoom(userId)).disconnectSockets(true);
+  }
 };
 
 export const getAllUsers = async (req, res) => {

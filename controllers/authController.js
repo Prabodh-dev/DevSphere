@@ -2,10 +2,27 @@ import mongoose from "mongoose";
 import User from "../models/User.js";
 import bcrypt from "bcrypt";
 import { signAccessToken } from "../utils/tokens.js";
-import { startSession } from "../utils/sessions.js";
-import { setRefreshCookie } from "../utils/cookies.js";
+import {
+  findFamilyByToken,
+  listActiveSessions,
+  revokeAllForUser,
+  revokeFamily,
+  rotateSession,
+  startSession,
+} from "../utils/sessions.js";
+import {
+  clearRefreshCookie,
+  readRefreshCookie,
+  setRefreshCookie,
+} from "../utils/cookies.js";
 import { getAccessTokenTtlSeconds } from "../config/env.js";
-import { conflict, forbidden, unauthorized } from "../utils/httpError.js";
+import {
+  HttpError,
+  conflict,
+  forbidden,
+  notFound,
+  unauthorized,
+} from "../utils/httpError.js";
 
 // Compared against when the email is unknown so both failures take similar time.
 const DUMMY_HASH = bcrypt.hashSync("placeholder-password", 10);
@@ -56,4 +73,84 @@ export const loginUser = async (req, res) => {
   if (user.isBlocked) throw forbidden("Account is blocked");
 
   await signIn(req, res, user, 200);
+};
+
+// Exchanges the refresh cookie for a new access token and a rotated cookie.
+export const refreshSession = async (req, res) => {
+  const rawToken = readRefreshCookie(req);
+  if (!rawToken) throw unauthorized("Refresh token required");
+
+  let result;
+  try {
+    result = await rotateSession(rawToken, req, req.app.get("io"));
+  } catch (err) {
+    if (err instanceof HttpError) clearRefreshCookie(res);
+    throw err;
+  }
+
+  setRefreshCookie(res, result.refreshToken);
+  res.status(200).json({
+    token: signAccessToken(result.userId, result.familyId),
+    expiresIn: getAccessTokenTtlSeconds(),
+  });
+};
+
+export const logout = async (req, res) => {
+  const rawToken = readRefreshCookie(req);
+  if (rawToken) {
+    const familyId = await findFamilyByToken(rawToken);
+    if (familyId) await revokeFamily(familyId, req.app.get("io"));
+  }
+  clearRefreshCookie(res);
+  res.status(200).json({ message: "Logged out" });
+};
+
+export const logoutAll = async (req, res) => {
+  await revokeAllForUser(req.user._id, req.app.get("io"));
+  clearRefreshCookie(res);
+  res.status(200).json({ message: "Logged out everywhere" });
+};
+
+export const getSessions = async (req, res) => {
+  const sessions = await listActiveSessions(req.user._id);
+  res.status(200).json(
+    sessions.map((session) => ({
+      id: session.familyId,
+      createdAt: session.familyStartedAt,
+      lastUsedAt: session.createdAt,
+      userAgent: session.userAgent,
+      current: session.familyId === req.auth.sid,
+    }))
+  );
+};
+
+export const deleteSession = async (req, res) => {
+  const familyId = req.valid.params.id;
+  const active = await listActiveSessions(req.user._id);
+  if (!active.some((session) => session.familyId === familyId)) {
+    throw notFound("Session not found");
+  }
+
+  await revokeFamily(familyId, req.app.get("io"));
+  if (familyId === req.auth.sid) clearRefreshCookie(res);
+  res.status(200).json({ message: "Session revoked" });
+};
+
+export const changePassword = async (req, res) => {
+  const { currentPassword, newPassword } = req.valid.body;
+
+  const user = await User.findById(req.user._id);
+  if (!(await bcrypt.compare(currentPassword, user.password))) {
+    throw forbidden("Current password is incorrect");
+  }
+
+  user.password = await bcrypt.hash(newPassword, 10);
+  await user.save();
+
+  // Every other login has to sign in again with the new password.
+  await revokeAllForUser(user._id, req.app.get("io"), {
+    exceptFamilyId: req.auth.sid,
+  });
+
+  res.status(200).json({ message: "Password changed" });
 };
