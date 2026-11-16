@@ -22,3 +22,6 @@ coverage/
 # Optional: Ignore package-lock if using yarn
 # package-lock.json
 # yarn.lock
+
+# Local Redis dumps
+dump.rdb
