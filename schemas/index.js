@@ -10,19 +10,33 @@ import {
 } from "./common.js";
 
 // ---- auth ----
+const passwordRule = z
+  .string()
+  .min(10, "must be at least 10 characters")
+  .max(72, "must be at most 72 characters")
+  .regex(/[A-Za-z]/, "must contain a letter")
+  .regex(/\d/, "must contain a digit");
+
 export const registerBody = z.object({
   username: text(30, 3).regex(
     /^[A-Za-z0-9_.-]+$/,
     "may only contain letters, numbers, dots, dashes and underscores"
   ),
   email,
-  password: z
-    .string()
-    .min(10, "must be at least 10 characters")
-    .max(72, "must be at most 72 characters")
-    .regex(/[A-Za-z]/, "must contain a letter")
-    .regex(/\d/, "must contain a digit"),
+  password: passwordRule,
 });
+
+export const changePasswordBody = z
+  .object({
+    currentPassword: z.string().min(1).max(72),
+    newPassword: passwordRule,
+  })
+  .refine((body) => body.newPassword !== body.currentPassword, {
+    path: ["newPassword"],
+    message: "must be different from the current password",
+  });
+
+export const sessionIdParams = z.object({ id: objectId });
 
 export const loginBody = z.object({
   email: text(254),

@@ -33,6 +33,12 @@ export function createLimiters(options = {}) {
       windowMs: FIFTEEN_MINUTES,
       limit: options.authMax ?? 10,
     }),
+    // Refresh token exchange.
+    refresh: rateLimit({
+      ...base,
+      windowMs: FIFTEEN_MINUTES,
+      limit: options.refreshMax ?? 60,
+    }),
     // The public snippet highlighter.
     highlight: rateLimit({
       ...base,
@@ -46,6 +52,7 @@ export const limitersFromEnv = (env = process.env) =>
   createLimiters({
     generalMax: toNumber(env.RATE_LIMIT_MAX, 300),
     authMax: toNumber(env.AUTH_RATE_LIMIT_MAX, 10),
+    refreshMax: toNumber(env.REFRESH_RATE_LIMIT_MAX, 60),
     highlightMax: toNumber(env.HIGHLIGHT_RATE_LIMIT_MAX, 30),
   });
 

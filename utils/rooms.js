@@ -2,3 +2,4 @@
 export const userRoom = (userId) => `user:${userId}`;
 export const chatRoom = (chatId) => `chat:${chatId}`;
 export const liveCodeRoom = (chatId) => `live:${chatId}`;
+export const sessionRoom = (sessionId) => `session:${sessionId}`;

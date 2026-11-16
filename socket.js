@@ -1,18 +1,27 @@
 // socket.js
 import { Server } from "socket.io";
-import jwt from "jsonwebtoken";
 import { getRedisClient, initRedis } from "./config/redis.js";
 import { getCorsOrigins } from "./config/env.js";
 import Chat from "./models/Chat.js";
 import LiveCode from "./models/LiveCode.js";
 import User from "./models/User.js";
-import { chatRoom, liveCodeRoom, userRoom } from "./utils/rooms.js";
+import {
+  chatRoom,
+  liveCodeRoom,
+  sessionRoom,
+  userRoom,
+} from "./utils/rooms.js";
+import { verifyAccessToken } from "./utils/tokens.js";
+import { isSessionActive } from "./utils/sessions.js";
 import {
   chatIdPayload,
   codeChangePayload,
   joinLiveCodePayload,
   messagePayload,
 } from "./schemas/socket.js";
+
+// setTimeout cannot wait longer than about 24 days.
+const MAX_TIMER_MS = 2 ** 31 - 1;
 
 // Largest single packet the transport accepts.
 const MAX_PACKET_BYTES = 512 * 1024;
@@ -53,12 +62,15 @@ const authenticate = async (socket, next) => {
     const token = socket.handshake.auth?.token;
     if (typeof token !== "string" || !token) throw new Error("no token");
 
-    const { userId } = jwt.verify(token, process.env.JWT_SECRET);
+    const { userId, sid, exp } = verifyAccessToken(token);
     const user = await User.findById(userId).select("username isBlocked");
     if (!user || user.isBlocked) throw new Error("not allowed");
+    if (!(await isSessionActive(sid, user._id))) throw new Error("not allowed");
 
     socket.data.userId = user._id.toString();
     socket.data.username = user.username;
+    socket.data.sessionId = sid;
+    socket.data.expiresAt = exp * 1000;
     next();
   } catch {
     next(new Error("Authentication failed"));
@@ -88,8 +100,18 @@ export const setupSocketIO = (server, options = {}) => {
   io.on("connection", (socket) => {
     const userId = socket.data.userId;
 
-    // Personal room, so events can be addressed to a user.
+    // Personal room, so events can be addressed to a user, and a room for the
+    // login so it can be closed when the login ends.
     socket.join(userRoom(userId));
+    socket.join(sessionRoom(socket.data.sessionId));
+
+    // The connection lasts as long as the access token it was opened with. The
+    // client reconnects with a fresh token after refreshing.
+    const closeAt = setTimeout(
+      () => socket.disconnect(true),
+      Math.min(Math.max(socket.data.expiresAt - Date.now(), 0), MAX_TIMER_MS)
+    );
+    socket.on("disconnect", () => clearTimeout(closeAt));
 
     // Per-connection allowance of incoming events.
     let windowStart = Date.now();
