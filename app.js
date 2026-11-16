@@ -1,5 +1,7 @@
 import express from "express";
 import cors from "cors";
+import mongoose from "mongoose";
+import { notFoundHandler, errorHandler } from "./middlewares/errorHandler.js";
 
 import authRoutes from "./routes/authRoutes.js";
 import profileRoutes from "./routes/profileRoutes.js";
@@ -18,6 +20,13 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+app.get("/healthz", (req, res) => {
+  const dbUp = mongoose.connection.readyState === 1;
+  res
+    .status(dbUp ? 200 : 503)
+    .json({ status: dbUp ? "ok" : "unavailable", db: dbUp ? "up" : "down" });
+});
+
 app.use("/api/auth", authRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/users", userRoutes);
@@ -29,5 +38,8 @@ app.use("/api/live-code", liveCodeRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/report", reportRoutes);
+
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 export default app;
