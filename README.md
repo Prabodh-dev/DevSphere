@@ -1,102 +1,125 @@
-# 🚀 DevSphere – Developer Social Platform (Backend)
+# DevSphere (Backend)
 
-DevSphere is a social platform for developers to connect, collaborate, and share knowledge in real time. Built with a robust backend using **Node.js**, **Express**, **MongoDB**, and **Socket.IO**, it powers features like developer profiles, real-time chats, stories (statuses), code snippet sharing, and live collaborative editing.
+DevSphere is a social platform for developers to connect, chat and share code.
+This repository contains the backend: a REST API and a Socket.IO server built
+with Node.js, Express and MongoDB.
 
----
+## Features
 
-## 🔧 Tech Stack
+- Registration and login with JWT bearer tokens
+- Developer profiles (bio, links, tags, avatar upload to S3)
+- Follow / unfollow, tags and tag search
+- One-to-one and group chat, with text and code messages
+- Real-time delivery, typing indicators and online presence over Socket.IO
+- 24-hour status posts (text, image, video)
+- Server-side syntax highlighting for code snippets
+- Shared live code document per chat
+- Notifications, content reports and basic admin endpoints
 
-- **Backend**: Node.js, Express.js
-- **Database**: MongoDB (Mongoose)
-- **Authentication**: JWT
-- **Real-Time Communication**: Socket.IO
-- **Cloud Storage**: AWS S3 (for avatar uploads)
-- **Redis**: Online status tracking (Upstash Redis)
-- **DevOps**: Docker, Railway for deployment
+## Tech stack
 
----
+- Node.js 20+ (ES modules), Express 5
+- MongoDB with Mongoose
+- Socket.IO
+- Redis (optional, used for online presence)
+- AWS S3 for uploaded media
+- pnpm, Vitest, ESLint and Prettier
 
-## ⚙️ Features
+## Getting started
 
-- 🔐 JWT Auth (Register/Login)
-- 👤 Developer Profiles (bio, GitHub, LinkedIn, tags, avatar upload)
-- 👥 Follow System
-- 💬 Real-Time 1-on-1 and Group Chat
-- 🟢 Online Status with Redis
-- 📸 Status System (Like WhatsApp Stories)
-- 🧠 Share Code Snippets with Syntax Highlighting
-- 🧑‍💻 Collaborative Code Editor (Live updates via Socket.IO)
-- 🚨 Admin Controls for group management and moderation
-- ☁️ Image Upload via AWS S3
-
----
-
-## 📁 Project Structure
-
-.
-├── config/
-├── controllers/
-├── middleware/
-├── models/
-├── routes/
-├── socket.js
-├── server.js
-├── Dockerfile
-├── docker-compose.yml
-└── .env.example
-
-yaml
-Copy
-Edit
-
----
-
-## 🧪 API Testing
-
-All APIs are tested using **Postman**.  
-JWT Auth is required for protected routes.  
-Use `Authorization: Bearer <token>` in headers.
-
----
-
-## 🐳 Docker Support
-
-You can run the backend using Docker:
+Requirements: Node.js 20 or newer, pnpm (via Corepack or a global install) and a MongoDB instance.
 
 ```bash
-docker-compose up --build
-Ensure you’ve set environment variables via .env.
-
-🚀 Deployment
-Currently deployed on Railway:
-🔗 https://devsphere-production.up.railway.app
-
-🔐 Environment Variables
-Copy .env.example → create .env:
-
-makefile
-Copy
-Edit
-PORT=
-MONGO_URI=
-JWT_SECRET=
-AWS_ACCESS_KEY=
-AWS_SECRET_KEY=
-AWS_REGION=
-AVATAR_BUCKET=
-REDIS_URL=
-🧠 About the Project
-DevSphere is designed for developer-to-developer communication, knowledge exchange, and collaboration.
-It’s like a mix of Discord, GitHub, and WhatsApp — built for devs.
-
-🤝 Contributing
-Pull requests are welcome!
-For major changes, open an issue first.
-
-🧑‍💻 Author
-Prabodh Raj U R
-Backend & DevOps Developer
-
-⭐️ Show your support
-If you liked the project, give it a ⭐️ on GitHub!
+corepack enable
+pnpm install
+cp .env.example .env   # then fill in the values
+pnpm dev               # or: pnpm start
 ```
+
+The server listens on `PORT` (default `5000`). `GET /healthz` reports whether
+the process is up and connected to the database.
+
+## Environment variables
+
+Copy `.env.example` to `.env` and set:
+
+| Variable         | Required    | Purpose                                                 |
+| ---------------- | ----------- | ------------------------------------------------------- |
+| `MONGO_URI`      | yes         | MongoDB connection string                               |
+| `JWT_SECRET`     | yes         | Secret used to sign tokens                              |
+| `PORT`           | no          | HTTP port, defaults to `5000`                           |
+| `REDIS_URL`      | no          | Redis URL for online presence; the app works without it |
+| `AWS_ACCESS_KEY` | for uploads | AWS access key id                                       |
+| `AWS_SECRET_KEY` | for uploads | AWS secret access key                                   |
+| `AWS_REGION`     | for uploads | AWS region of the bucket                                |
+| `AVATAR_BUCKET`  | for uploads | S3 bucket for avatars and status media                  |
+
+The server exits at startup if `MONGO_URI` or `JWT_SECRET` is missing, or if it
+cannot connect to MongoDB.
+
+## Scripts
+
+| Command             | What it does                  |
+| ------------------- | ----------------------------- |
+| `pnpm dev`          | Start with automatic restarts |
+| `pnpm start`        | Start the server              |
+| `pnpm lint`         | Run ESLint                    |
+| `pnpm format`       | Format the code with Prettier |
+| `pnpm format:check` | Check formatting              |
+| `pnpm test`         | Run the test suite            |
+
+## Testing
+
+The tests are integration tests and need a real MongoDB and Redis. Point them
+at throwaway instances:
+
+```bash
+export TEST_MONGO_URI=mongodb://127.0.0.1:27017
+export REDIS_URL=redis://127.0.0.1:6379
+pnpm test
+```
+
+The tests use a separate `devsphere_test` database and drop it when finished.
+Never point `TEST_MONGO_URI` at a database you care about.
+
+## Docker
+
+```bash
+cp .env.example .env   # set JWT_SECRET at least
+docker compose up --build
+```
+
+Compose starts the app together with MongoDB and Redis. The app overrides
+`MONGO_URI` and `REDIS_URL` to point at those containers, and MongoDB is not
+published to the host.
+
+## Deployment
+
+Configuration is done entirely through environment variables (see above). Any
+host that can run the Docker image or `pnpm start` with those variables set
+will work.
+
+## Project structure
+
+```
+.
+├── app.js            Express app and route wiring
+├── server.js         Startup, shutdown, database connection
+├── socket.js         Socket.IO server
+├── config/           Environment and Redis setup
+├── controllers/
+├── middlewares/
+├── models/
+├── routes/
+├── utils/
+└── tests/
+```
+
+## Contributing
+
+Pull requests are welcome. For larger changes, please open an issue first.
+Run `pnpm lint` and `pnpm test` before submitting.
+
+## Author
+
+Prabodh Raj U R
