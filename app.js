@@ -4,7 +4,7 @@ import helmet from "helmet";
 import mongoose from "mongoose";
 import { notFoundHandler, errorHandler } from "./middlewares/errorHandler.js";
 import { limiters } from "./middlewares/rateLimit.js";
-import { getCorsOrigins } from "./config/env.js";
+import { getCorsOrigins, getTrustProxy } from "./config/env.js";
 
 import authRoutes from "./routes/authRoutes.js";
 import profileRoutes from "./routes/profileRoutes.js";
@@ -20,15 +20,9 @@ import reportRoutes from "./routes/reportRoutes.js";
 
 const app = express();
 
-// Set TRUST_PROXY to the number of reverse proxies in front of the app so
-// client addresses (used by the rate limiters) are read correctly.
-if (process.env.TRUST_PROXY) {
-  const hops = Number(process.env.TRUST_PROXY);
-  app.set(
-    "trust proxy",
-    Number.isInteger(hops) ? hops : process.env.TRUST_PROXY
-  );
-}
+// TRUST_PROXY is the number of reverse proxies in front of the app (default 0).
+// It lets req.ip, and so the rate limiters, see the real client address.
+app.set("trust proxy", getTrustProxy());
 
 app.use(helmet());
 app.use(cors({ origin: getCorsOrigins().length ? getCorsOrigins() : false }));

@@ -5,13 +5,18 @@ const defaults = {
   JWT_SECRET: "test-only-secret-that-is-long-enough-123",
   PORT: "",
   MONGO_URI: "",
-  CORS_ORIGINS: "",
+  // Origin used by the session tests (refresh and logout check it).
+  CORS_ORIGINS: "https://app.example.test",
   TRUST_PROXY: "",
+  ACCESS_TOKEN_TTL: "15m",
+  REFRESH_TOKEN_TTL_DAYS: "30",
+  COOKIE_SECURE: "false",
 
   // The suite makes many requests from one address; keep the limiters out of
   // the way unless a test sets its own values.
   RATE_LIMIT_MAX: "100000",
   AUTH_RATE_LIMIT_MAX: "100000",
+  REFRESH_RATE_LIMIT_MAX: "100000",
   HIGHLIGHT_RATE_LIMIT_MAX: "100000",
 
   AWS_ACCESS_KEY: "test-access-key-id",

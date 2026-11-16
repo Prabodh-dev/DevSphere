@@ -9,6 +9,8 @@ describe("test environment", () => {
     expect(process.env.AWS_SECRET_KEY).toBe("test-secret-access-key");
     expect(process.env.AVATAR_BUCKET).toBe("example-bucket");
     expect(process.env.MONGO_URI).toBe("");
-    expect(process.env.CORS_ORIGINS).toBe("");
+    expect(process.env.CORS_ORIGINS).toBe("https://app.example.test");
+    expect(process.env.ACCESS_TOKEN_TTL).toBe("15m");
+    expect(process.env.COOKIE_SECURE).toBe("false");
   });
 });
