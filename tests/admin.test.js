@@ -5,6 +5,7 @@ import { spawn } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
 import app from "../app.js";
+import { controlledEnv } from "./helpers/env.js";
 import User from "../models/User.js";
 import Status from "../models/Status.js";
 import Message from "../models/Message.js";
@@ -174,7 +175,7 @@ describe("make-admin script", () => {
     uri.pathname = "/devsphere_test";
     const child = spawn(process.execPath, ["scripts/make-admin.js", ...args], {
       cwd: root,
-      env: { PATH: process.env.PATH, MONGO_URI: uri.toString() },
+      env: controlledEnv({ MONGO_URI: uri.toString() }),
     });
     let output = "";
     child.stdout.on("data", (d) => (output += d));
