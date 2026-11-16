@@ -219,3 +219,49 @@ describe("003-profile-fields-to-user", () => {
     expect(merged.slice(0, 15)).toEqual(many);
   });
 });
+
+describe("004-chat-latest-message", () => {
+  const name = "004-chat-latest-message";
+
+  it("sets latestMessage on chats that have messages and leaves others alone", async () => {
+    const [withMessages, empty, alreadySet] = [id(), id(), id()];
+    await db.collection("chats").insertMany([
+      { _id: withMessages, members: [id()], updatedAt: new Date("2024-03-03") },
+      { _id: empty, members: [id()] },
+      { _id: alreadySet, members: [id()], latestMessage: id() },
+    ]);
+    const [older, newer] = [id(), id()];
+    await db.collection("messages").insertMany([
+      {
+        _id: older,
+        chat: withMessages,
+        createdAt: new Date("2024-01-01"),
+        text: "a",
+      },
+      {
+        _id: newer,
+        chat: withMessages,
+        createdAt: new Date("2024-02-01"),
+        text: "b",
+      },
+      { chat: alreadySet, createdAt: new Date("2024-02-01"), text: "c" },
+    ]);
+
+    expect((await dryRun(name)).changed).toBe(1);
+    expect(
+      await db
+        .collection("chats")
+        .countDocuments({ _id: withMessages, latestMessage: { $exists: true } })
+    ).toBe(0);
+
+    expect((await runTwice(name)).changed).toBe(1);
+
+    const chat = await db.collection("chats").findOne({ _id: withMessages });
+    expect(chat.latestMessage).toEqual(newer);
+    // Backfilling does not change the activity time.
+    expect(chat.updatedAt).toEqual(new Date("2024-03-03"));
+    expect(
+      (await db.collection("chats").findOne({ _id: empty })).latestMessage
+    ).toBeUndefined();
+  });
+});

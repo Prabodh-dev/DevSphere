@@ -1,5 +1,6 @@
 import { getSignedMediaUrl } from "./s3Utils.js";
 import { followCounts } from "./follows.js";
+import { previewOf } from "./chatPreview.js";
 
 // Only what other users may see about an account.
 export const publicUserView = async (user) => {
@@ -52,5 +53,18 @@ export const chatView = async (chat) => {
       member.username !== undefined ? publicUserView(member) : member
     )
   );
+
+  // Only a populated message is shown; anything else means "no preview".
+  const latest = chat.latestMessage;
+  plain.latestMessage =
+    latest && latest.createdAt
+      ? {
+          sender: latest.sender?.username
+            ? { _id: latest.sender._id, username: latest.sender.username }
+            : null,
+          preview: previewOf(latest),
+          createdAt: latest.createdAt,
+        }
+      : null;
   return plain;
 };

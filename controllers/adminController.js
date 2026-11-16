@@ -6,6 +6,7 @@ import { badRequest, notFound } from "../utils/httpError.js";
 import { deleteMedia } from "../utils/s3Utils.js";
 import { userRoom } from "../utils/rooms.js";
 import { revokeAllForUser } from "../utils/sessions.js";
+import { refreshLatestMessage } from "../utils/chatPreview.js";
 
 const setBlocked = async (userId, isBlocked, actingUserId, io) => {
   if (isBlocked && userId === actingUserId.toString()) {
@@ -52,6 +53,7 @@ export const deleteReportedItem = async (req, res) => {
   if (!deleted) throw notFound(`${type} not found`);
 
   if (type === "status") await deleteMedia(deleted.mediaKey);
+  if (type === "message") await refreshLatestMessage(deleted.chat, deleted._id);
   await Report.deleteMany({ targetType: type, targetId: id });
 
   res.status(200).json({ message: `${type} deleted` });
