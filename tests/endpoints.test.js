@@ -11,7 +11,11 @@ import request from "supertest";
 import mongoose from "mongoose";
 
 vi.mock("../utils/s3Utils.js", () => ({
-  uploadToS3: vi.fn().mockResolvedValue("https://example.test/status/a.png"),
+  uploadMedia: vi.fn().mockResolvedValue("status/test-key.png"),
+  getSignedMediaUrl: vi.fn(async (key) =>
+    key ? `https://signed.example.test/${key}` : ""
+  ),
+  deleteMedia: vi.fn().mockResolvedValue(true),
 }));
 
 const { default: app } = await import("../app.js");
@@ -47,6 +51,12 @@ describe("users", () => {
 
     const followers = await as(alice).get(`/api/users/${bob.id}/followers`);
     expect(followers.body.map((u) => u.username)).toEqual([alice.username]);
+    // Only public fields are returned.
+    expect(Object.keys(followers.body[0]).sort()).toEqual([
+      "_id",
+      "avatar",
+      "username",
+    ]);
     const following = await as(alice).get(`/api/users/${alice.id}/following`);
     expect(following.body.map((u) => u.username)).toEqual([bob.username]);
 
@@ -80,6 +90,12 @@ describe("users", () => {
 
     const found = await as(bob).get("/api/users?tag=go");
     expect(found.body.map((u) => u.username)).toEqual([alice.username]);
+    expect(Object.keys(found.body[0]).sort()).toEqual([
+      "_id",
+      "avatar",
+      "tags",
+      "username",
+    ]);
   });
 
   it("validates tags and the search query", async () => {
@@ -106,9 +122,14 @@ describe("status", () => {
   it("uploads image statuses", async () => {
     const res = await post(alice)
       .field("type", "image")
-      .attach("media", Buffer.from("img"), "a.png");
+      .attach("media", Buffer.from("img"), {
+        filename: "a.png",
+        contentType: "image/png",
+      });
     expect(res.status).toBe(201);
-    expect(res.body.status.content).toBe("https://example.test/status/a.png");
+    expect(res.body.status.content).toBe(
+      "https://signed.example.test/status/test-key.png"
+    );
   });
 
   it("validates type, content and files", async () => {

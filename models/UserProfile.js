@@ -9,7 +9,7 @@ const userProfileSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
-    avatar: { type: String },
+    avatarKey: { type: String },
     bio: { type: String, maxlength: 300 },
     github: { type: String },
     linkedin: { type: String },

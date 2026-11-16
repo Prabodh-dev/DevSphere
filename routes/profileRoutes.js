@@ -7,7 +7,7 @@ import {
 } from "../controllers/profileController.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
 import validate from "../middlewares/validate.js";
-import upload from "../utils/multer.js";
+import { uploadAvatar } from "../utils/multer.js";
 import { profileBody, profileParams } from "../schemas/index.js";
 
 const router = express.Router();
@@ -15,7 +15,7 @@ const router = express.Router();
 router.post(
   "/",
   authMiddleware,
-  upload.single("avatar"),
+  uploadAvatar.single("avatar"),
   validate({ body: profileBody }),
   createOrUpdateProfile
 );

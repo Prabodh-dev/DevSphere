@@ -3,6 +3,7 @@ import Report from "../models/Report.js";
 import Status from "../models/Status.js";
 import Message from "../models/Message.js";
 import { badRequest, notFound } from "../utils/httpError.js";
+import { deleteMedia } from "../utils/s3Utils.js";
 
 const setBlocked = async (userId, isBlocked, actingUserId) => {
   if (isBlocked && userId === actingUserId.toString()) {
@@ -42,6 +43,7 @@ export const deleteReportedItem = async (req, res) => {
   const deleted = await Model.findByIdAndDelete(id);
   if (!deleted) throw notFound(`${type} not found`);
 
+  if (type === "status") await deleteMedia(deleted.mediaKey);
   await Report.deleteMany({ targetType: type, targetId: id });
 
   res.status(200).json({ message: `${type} deleted` });

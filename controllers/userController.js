@@ -1,5 +1,6 @@
 import User from "../models/User.js";
 import { badRequest, notFound } from "../utils/httpError.js";
+import { publicUserView } from "../utils/serializers.js";
 
 // Follow a user
 export const followUser = async (req, res) => {
@@ -55,22 +56,22 @@ export const unfollowUser = async (req, res) => {
 export const getFollowers = async (req, res) => {
   const user = await User.findById(req.valid.params.id).populate(
     "followers",
-    "username email avatar"
+    "username avatarKey"
   );
   if (!user) throw notFound("User not found");
 
-  res.status(200).json(user.followers);
+  res.status(200).json(await Promise.all(user.followers.map(publicUserView)));
 };
 
 // Get following of a user
 export const getFollowing = async (req, res) => {
   const user = await User.findById(req.valid.params.id).populate(
     "following",
-    "username email avatar"
+    "username avatarKey"
   );
   if (!user) throw notFound("User not found");
 
-  res.status(200).json(user.following);
+  res.status(200).json(await Promise.all(user.following.map(publicUserView)));
 };
 
 // Update user's tags
@@ -87,8 +88,15 @@ export const updateTags = async (req, res) => {
 // Search users by tag
 export const searchUsersByTag = async (req, res) => {
   const users = await User.find({ tags: req.valid.query.tag }).select(
-    "username email avatar tags"
+    "username avatarKey tags"
   );
 
-  res.status(200).json(users);
+  res.status(200).json(
+    await Promise.all(
+      users.map(async (user) => ({
+        ...(await publicUserView(user)),
+        tags: user.tags,
+      }))
+    )
+  );
 };

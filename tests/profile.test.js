@@ -11,7 +11,11 @@ import request from "supertest";
 import mongoose from "mongoose";
 
 vi.mock("../utils/s3Utils.js", () => ({
-  uploadToS3: vi.fn().mockResolvedValue("https://example.test/avatars/me.png"),
+  uploadMedia: vi.fn().mockResolvedValue("avatars/test-key.png"),
+  getSignedMediaUrl: vi.fn(async (key) =>
+    key ? `https://signed.example.test/${key}` : ""
+  ),
+  deleteMedia: vi.fn().mockResolvedValue(true),
 }));
 
 const { default: app } = await import("../app.js");
@@ -72,15 +76,21 @@ describe("profile routes", () => {
     expect(res.body.tags).toEqual(["node", "mongo"]);
   });
 
-  it("stores the avatar on the profile and on the user record", async () => {
+  it("stores the avatar key and returns a link", async () => {
     const res = await save()
       .field("bio", "with avatar")
-      .attach("avatar", Buffer.from("fake-image"), "me.png");
+      .attach("avatar", Buffer.from("fake-image"), {
+        filename: "me.png",
+        contentType: "image/png",
+      });
     expect(res.status).toBe(200);
-    expect(res.body.avatar).toBe("https://example.test/avatars/me.png");
+    expect(res.body.avatar).toBe(
+      "https://signed.example.test/avatars/test-key.png"
+    );
+    expect(res.body.avatarKey).toBeUndefined();
 
     const user = await User.findById(alice.id);
-    expect(user.avatar).toBe("https://example.test/avatars/me.png");
+    expect(user.avatarKey).toBe("avatars/test-key.png");
   });
 
   it("rejects a bio that is too long", async () => {
