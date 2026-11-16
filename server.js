@@ -4,13 +4,11 @@ import http from "http";
 import app from "./app.js";
 import { setupSocketIO } from "./socket.js";
 import { closeRedis } from "./config/redis.js";
-import { getMissingEnv } from "./config/env.js";
+import { getEnvProblems } from "./config/env.js";
 
-const missing = getMissingEnv();
-if (missing.length > 0) {
-  console.error(
-    `Missing required environment variables: ${missing.join(", ")}`
-  );
+const problems = getEnvProblems();
+if (problems.length > 0) {
+  console.error(`Invalid environment:\n- ${problems.join("\n- ")}`);
   process.exit(1);
 }
 
