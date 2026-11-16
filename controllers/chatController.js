@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 import Chat from "../models/Chat.js";
 import User from "../models/User.js";
 import { badRequest, forbidden, notFound } from "../utils/httpError.js";
+import { chatView } from "../utils/serializers.js";
+import { notifyUser } from "../utils/notify.js";
 
 const sameId = (a, b) => String(a) === String(b);
 
@@ -44,10 +46,23 @@ export const createGroupChat = async (req, res) => {
 
   const fullGroup = await Chat.findById(group._id).populate(
     "members",
-    "-password"
+    "username avatarKey"
   );
 
-  res.status(201).json(fullGroup);
+  const io = req.app.get("io");
+  await Promise.all(
+    memberIds.map((userId) =>
+      notifyUser(io, {
+        userId,
+        type: "group",
+        content: `${req.user.username} added you to ${chatName}`,
+        fromUser: req.user._id,
+        chatId: group._id,
+      })
+    )
+  );
+
+  res.status(201).json(await chatView(fullGroup));
 };
 
 // Add member (admin only)
@@ -63,6 +78,14 @@ export const addToGroup = async (req, res) => {
 
   chat.members.push(userId);
   await chat.save();
+
+  await notifyUser(req.app.get("io"), {
+    userId,
+    type: "group",
+    content: `${req.user.username} added you to ${chat.chatName}`,
+    fromUser: req.user._id,
+    chatId: chat._id,
+  });
 
   res.status(200).json({ message: "User added" });
 };

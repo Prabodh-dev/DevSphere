@@ -27,3 +27,14 @@ export const statusView = async (status) => {
   if (mediaKey) view.content = await getSignedMediaUrl(mediaKey);
   return view;
 };
+
+// Members are shown with their public fields only.
+export const chatView = async (chat) => {
+  const plain = chat.toObject();
+  plain.members = await Promise.all(
+    chat.members.map((member) =>
+      member.username !== undefined ? publicUserView(member) : member
+    )
+  );
+  return plain;
+};

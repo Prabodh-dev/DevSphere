@@ -1,6 +1,7 @@
 import User from "../models/User.js";
 import { badRequest, notFound } from "../utils/httpError.js";
 import { publicUserView } from "../utils/serializers.js";
+import { notifyUser } from "../utils/notify.js";
 
 // Follow a user
 export const followUser = async (req, res) => {
@@ -25,6 +26,13 @@ export const followUser = async (req, res) => {
 
   await targetUser.save();
   await currentUser.save();
+
+  await notifyUser(req.app.get("io"), {
+    userId: targetUser._id,
+    type: "follow",
+    content: `${currentUser.username} started following you`,
+    fromUser: currentUser._id,
+  });
 
   res.status(200).json({ message: "User followed successfully" });
 };

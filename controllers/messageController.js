@@ -4,6 +4,7 @@ import Message from "../models/Message.js";
 import User from "../models/User.js";
 import { loadChatForMember } from "../utils/chatAccess.js";
 import { badRequest, notFound } from "../utils/httpError.js";
+import { chatView } from "../utils/serializers.js";
 
 export const accessChat = async (req, res) => {
   const { userId } = req.valid.body;
@@ -33,9 +34,9 @@ export const accessChat = async (req, res) => {
 
 export const fetchChats = async (req, res) => {
   const chats = await Chat.find({ members: req.user._id })
-    .populate("members", "-password")
+    .populate("members", "username avatarKey")
     .sort({ updatedAt: -1 });
-  res.status(200).json(chats);
+  res.status(200).json(await Promise.all(chats.map(chatView)));
 };
 
 export const sendMessage = async (req, res) => {
@@ -58,7 +59,7 @@ export const sendMessage = async (req, res) => {
 
   const fullMsg = await Message.findById(message._id)
     .populate("sender", "username")
-    .populate("chat");
+    .populate("chat", "isGroupChat chatName");
 
   res.status(201).json(fullMsg);
 };

@@ -51,6 +51,7 @@ async function start() {
   });
 
   io = setupSocketIO(server);
+  app.set("io", io);
 
   // Remove stored files of statuses that are no longer visible.
   const runCleanup = () =>
