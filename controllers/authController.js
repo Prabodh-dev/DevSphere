@@ -1,19 +1,27 @@
 import mongoose from "mongoose";
 import User from "../models/User.js";
 import bcrypt from "bcrypt";
-import generateToken from "../utils/generateToken.js";
+import { signAccessToken } from "../utils/tokens.js";
+import { startSession } from "../utils/sessions.js";
+import { setRefreshCookie } from "../utils/cookies.js";
+import { getAccessTokenTtlSeconds } from "../config/env.js";
 import { conflict, forbidden, unauthorized } from "../utils/httpError.js";
 
 // Compared against when the email is unknown so both failures take similar time.
 const DUMMY_HASH = bcrypt.hashSync("placeholder-password", 10);
 
-function publicUser(user) {
-  return {
+// Starts a session: sets the refresh cookie and returns the access token.
+async function signIn(req, res, user, status) {
+  const { familyId, refreshToken } = await startSession(user._id, req);
+  setRefreshCookie(res, refreshToken);
+
+  res.status(status).json({
     _id: user._id,
     username: user.username,
     email: user.email,
-    token: generateToken(user._id),
-  };
+    token: signAccessToken(user._id.toString(), familyId),
+    expiresIn: getAccessTokenTtlSeconds(),
+  });
 }
 
 export const registerUser = async (req, res) => {
@@ -29,7 +37,7 @@ export const registerUser = async (req, res) => {
     password: hashedPassword,
   });
 
-  res.status(201).json(publicUser(user));
+  await signIn(req, res, user, 201);
 };
 
 export const loginUser = async (req, res) => {
@@ -47,5 +55,5 @@ export const loginUser = async (req, res) => {
 
   if (user.isBlocked) throw forbidden("Account is blocked");
 
-  res.status(200).json(publicUser(user));
+  await signIn(req, res, user, 200);
 };
