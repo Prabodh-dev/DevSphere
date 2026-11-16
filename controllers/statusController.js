@@ -3,6 +3,7 @@ import Status from "../models/Status.js";
 import { uploadMedia } from "../utils/s3Utils.js";
 import { badRequest } from "../utils/httpError.js";
 import { statusView } from "../utils/serializers.js";
+import { followedIds } from "../utils/follows.js";
 
 const VISIBLE_FOR_MS = 24 * 60 * 60 * 1000;
 // The record is kept a little longer than it is visible so its stored file
@@ -52,11 +53,11 @@ export const postStatus = async (req, res) => {
  */
 export const getStatusFeed = async (req, res) => {
   const user = req.user;
-  const followedIds = user.following || [];
+  const followed = await followedIds(user._id);
   const now = new Date();
 
   const statuses = await Status.find({
-    user: mongoose.trusted({ $in: [...followedIds, user._id] }),
+    user: mongoose.trusted({ $in: [...followed, user._id] }),
     // Records created before visibleUntil existed only have expiresAt.
     $or: [
       { visibleUntil: mongoose.trusted({ $gt: now }) },

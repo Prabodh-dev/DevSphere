@@ -1,4 +1,5 @@
 import { getSignedMediaUrl } from "./s3Utils.js";
+import { followCounts } from "./follows.js";
 
 // Only what other users may see about an account.
 export const publicUserView = async (user) => {
@@ -12,7 +13,8 @@ export const publicUserView = async (user) => {
 
 export const profileView = async (profile) => {
   const { avatarKey, ...rest } = profile.toObject();
-  return { ...rest, avatar: await getSignedMediaUrl(avatarKey) };
+  const counts = await followCounts(profile.user._id ?? profile.user);
+  return { ...rest, avatar: await getSignedMediaUrl(avatarKey), ...counts };
 };
 
 // Populated `user` fields must have been selected with "username avatarKey".

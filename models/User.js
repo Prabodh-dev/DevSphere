@@ -27,8 +27,6 @@ const userSchema = new mongoose.Schema(
     },
     password: { type: String, required: true },
     avatarKey: { type: String, default: "", maxlength: 300 },
-    followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     role: { type: String, enum: ["user", "admin"], default: "user" },
     isBlocked: { type: Boolean, default: false },
     tags: {

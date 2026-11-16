@@ -55,6 +55,10 @@ export const profileParams = z.object({ userId: objectId });
 
 // ---- users ----
 export const userIdParams = z.object({ id: objectId });
+export const pageQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(200).default(100),
+  skip: z.coerce.number().int().min(0).default(0),
+});
 export const tagsBody = z.object({ tags: tagList });
 export const tagQuery = z.object({ tag: text(30) });
 
