@@ -106,8 +106,8 @@ describe("login", () => {
 describe("stored sessions", () => {
   it("keep only a hash of the refresh token", async () => {
     const user = await createUser();
-    const agent = "x".repeat(500);
-    const { cookie } = await loginAs(user, { "User-Agent": agent });
+    const longUserAgent = "x".repeat(500);
+    const { cookie } = await loginAs(user, { "User-Agent": longUserAgent });
     const raw = tokenFromCookie(cookie);
 
     expect(Buffer.from(raw, "base64url").length).toBeGreaterThanOrEqual(32);
