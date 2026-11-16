@@ -140,3 +140,82 @@ describe("002-follows-from-user-arrays", () => {
     expect(kept.createdAt).toEqual(created);
   });
 });
+
+describe("003-profile-fields-to-user", () => {
+  const name = "003-profile-fields-to-user";
+
+  it("moves profile-only values onto the user and removes the duplicates", async () => {
+    const [onlyProfile, both, orphanOwner] = [id(), id(), id()];
+    await db.collection("users").insertMany([
+      { _id: onlyProfile, username: "p", avatarKey: "", tags: [] },
+      {
+        _id: both,
+        username: "b",
+        avatarKey: "avatars/user.png",
+        tags: ["a", "b"],
+      },
+    ]);
+    await db.collection("userprofiles").insertMany([
+      {
+        user: onlyProfile,
+        bio: "x",
+        avatarKey: "avatars/profile.png",
+        tags: ["go", "rust"],
+        avatar: "https://old.example.test/a.png",
+      },
+      {
+        user: both,
+        avatarKey: "avatars/profile-two.png",
+        tags: ["b", "c", "x".repeat(31)],
+      },
+      { user: orphanOwner, tags: ["lost"], avatarKey: "avatars/lost.png" },
+      { user: id(), bio: "already clean" },
+    ]);
+
+    expect((await dryRun(name)).changed).toBe(3);
+    expect(
+      await db
+        .collection("userprofiles")
+        .countDocuments({ tags: { $exists: true } })
+    ).toBe(3);
+
+    expect((await runTwice(name)).changed).toBe(3);
+
+    const first = await db.collection("users").findOne({ _id: onlyProfile });
+    expect(first.avatarKey).toBe("avatars/profile.png");
+    expect(first.tags).toEqual(["go", "rust"]);
+
+    // The user's own avatar wins; tags are merged without duplicates.
+    const second = await db.collection("users").findOne({ _id: both });
+    expect(second.avatarKey).toBe("avatars/user.png");
+    expect(second.tags).toEqual(["a", "b", "c"]);
+
+    expect(
+      await db.collection("userprofiles").countDocuments({
+        $or: [
+          { tags: { $exists: true } },
+          { avatarKey: { $exists: true } },
+          { avatar: { $exists: true } },
+        ],
+      })
+    ).toBe(0);
+    expect(
+      (await db.collection("userprofiles").findOne({ user: onlyProfile })).bio
+    ).toBe("x");
+  });
+
+  it("caps the merged tag list at 20", async () => {
+    const user = id();
+    const many = Array.from({ length: 15 }, (_, i) => `u${i}`);
+    const more = Array.from({ length: 15 }, (_, i) => `p${i}`);
+    await db
+      .collection("users")
+      .insertOne({ _id: user, username: "u", tags: many });
+    await db.collection("userprofiles").insertOne({ user, tags: more });
+
+    await runTwice(name);
+    const merged = (await db.collection("users").findOne({ _id: user })).tags;
+    expect(merged).toHaveLength(20);
+    expect(merged.slice(0, 15)).toEqual(many);
+  });
+});

@@ -11,10 +11,24 @@ export const publicUserView = async (user) => {
   };
 };
 
-export const profileView = async (profile) => {
-  const { avatarKey, ...rest } = profile.toObject();
-  const counts = await followCounts(profile.user._id ?? profile.user);
-  return { ...rest, avatar: await getSignedMediaUrl(avatarKey), ...counts };
+// A profile as shown to clients. The username, avatar and tags belong to the
+// user record; the profile holds the bio and links.
+export const profileView = async (profile, user) => {
+  const { _id, bio, github, linkedin, website, createdAt, updatedAt } =
+    profile.toObject();
+  return {
+    _id,
+    user: { _id: user._id, username: user.username },
+    avatar: await getSignedMediaUrl(user.avatarKey),
+    tags: user.tags ?? [],
+    bio,
+    github,
+    linkedin,
+    website,
+    ...(await followCounts(user._id)),
+    createdAt,
+    updatedAt,
+  };
 };
 
 // Populated `user` fields must have been selected with "username avatarKey".
