@@ -2,11 +2,14 @@ import User from "../models/User.js";
 import Report from "../models/Report.js";
 import Status from "../models/Status.js";
 import Message from "../models/Message.js";
-import { notFound } from "../utils/httpError.js";
+import { badRequest, notFound } from "../utils/httpError.js";
 import { requireObjectId, requireOneOf } from "../utils/validate.js";
 
-const setBlocked = async (id, isBlocked) => {
+const setBlocked = async (id, isBlocked, actingUserId) => {
   const userId = requireObjectId(id, "user id");
+  if (isBlocked && userId === actingUserId.toString()) {
+    throw badRequest("You can't block your own account");
+  }
   const user = await User.findById(userId);
   if (!user) throw notFound("User not found");
 
@@ -20,12 +23,12 @@ export const getAllUsers = async (req, res) => {
 };
 
 export const blockUser = async (req, res) => {
-  await setBlocked(req.params.id, true);
+  await setBlocked(req.params.id, true, req.user._id);
   res.status(200).json({ message: "User blocked" });
 };
 
 export const unblockUser = async (req, res) => {
-  await setBlocked(req.params.id, false);
+  await setBlocked(req.params.id, false, req.user._id);
   res.status(200).json({ message: "User unblocked" });
 };
 
@@ -42,6 +45,8 @@ export const deleteReportedItem = async (req, res) => {
   const Model = type === "status" ? Status : Message;
   const deleted = await Model.findByIdAndDelete(id);
   if (!deleted) throw notFound(`${type} not found`);
+
+  await Report.deleteMany({ targetType: type, targetId: id });
 
   res.status(200).json({ message: `${type} deleted` });
 };

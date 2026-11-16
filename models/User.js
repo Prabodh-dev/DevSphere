@@ -7,6 +7,7 @@ const userSchema = new mongoose.Schema({
   avatar: { type: String, default: "" },
   followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  role: { type: String, enum: ["user", "admin"], default: "user" },
   isBlocked: { type: Boolean, default: false },
   tags: { type: [String], index: true, default: [] },
   createdAt: { type: Date, default: Date.now },

@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "make-admin": "node scripts/make-admin.js"
   },
   "keywords": [],
   "author": "Prabodh Raj U R",

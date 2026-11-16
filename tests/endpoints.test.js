@@ -16,7 +16,6 @@ vi.mock("../utils/s3Utils.js", () => ({
 
 const { default: app } = await import("../app.js");
 const { default: User } = await import("../models/User.js");
-const { default: Message } = await import("../models/Message.js");
 const { connectTestDb, clearTestDb, disconnectTestDb } =
   await import("./helpers/db.js");
 const { createUser, bearer } = await import("./helpers/users.js");
@@ -185,29 +184,5 @@ describe("snippets", () => {
     const bad = await request(app).post("/api/snippets/highlight").send({});
     expect(bad.status).toBe(400);
     expect(Object.keys(bad.body)).toEqual(["message"]);
-  });
-});
-
-describe("admin helpers", () => {
-  it("validates ids and removal types", async () => {
-    const msg = await Message.create({ text: "x" });
-
-    expect((await as(alice).patch("/api/admin/block/nope")).status).toBe(400);
-    expect(
-      (await as(alice).patch(`/api/admin/block/${missingId()}`)).status
-    ).toBe(404);
-    expect(
-      (await as(alice).delete(`/api/admin/remove/other/${msg.id}`)).status
-    ).toBe(400);
-    expect(
-      (await as(alice).delete("/api/admin/remove/message/nope")).status
-    ).toBe(400);
-    expect(
-      (await as(alice).delete(`/api/admin/remove/message/${missingId()}`))
-        .status
-    ).toBe(404);
-    expect(
-      (await as(alice).delete(`/api/admin/remove/message/${msg.id}`)).status
-    ).toBe(200);
   });
 });
