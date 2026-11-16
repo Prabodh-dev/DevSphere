@@ -1,6 +1,7 @@
 // models/Chat.js
 
 import mongoose from "mongoose";
+import "../config/mongoose.js";
 
 const chatSchema = new mongoose.Schema(
   {
@@ -35,5 +36,7 @@ const chatSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+chatSchema.index({ members: 1 });
 
 export default mongoose.model("Chat", chatSchema);

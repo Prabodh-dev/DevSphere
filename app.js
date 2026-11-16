@@ -1,7 +1,10 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import mongoose from "mongoose";
 import { notFoundHandler, errorHandler } from "./middlewares/errorHandler.js";
+import { limiters } from "./middlewares/rateLimit.js";
+import { getCorsOrigins } from "./config/env.js";
 
 import authRoutes from "./routes/authRoutes.js";
 import profileRoutes from "./routes/profileRoutes.js";
@@ -16,9 +19,21 @@ import adminRoutes from "./routes/adminRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 
 const app = express();
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// Set TRUST_PROXY to the number of reverse proxies in front of the app so
+// client addresses (used by the rate limiters) are read correctly.
+if (process.env.TRUST_PROXY) {
+  const hops = Number(process.env.TRUST_PROXY);
+  app.set(
+    "trust proxy",
+    Number.isInteger(hops) ? hops : process.env.TRUST_PROXY
+  );
+}
+
+app.use(helmet());
+app.use(cors({ origin: getCorsOrigins().length ? getCorsOrigins() : false }));
+app.use(express.json({ limit: "256kb" }));
+app.use(express.urlencoded({ extended: false, limit: "256kb" }));
 
 app.get("/healthz", (req, res) => {
   const dbUp = mongoose.connection.readyState === 1;
@@ -26,6 +41,8 @@ app.get("/healthz", (req, res) => {
     .status(dbUp ? 200 : 503)
     .json({ status: dbUp ? "ok" : "unavailable", db: dbUp ? "up" : "down" });
 });
+
+app.use("/api", limiters.general);
 
 app.use("/api/auth", authRoutes);
 app.use("/api/profile", profileRoutes);

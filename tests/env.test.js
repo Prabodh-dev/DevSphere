@@ -1,15 +1,45 @@
 import { describe, it, expect } from "vitest";
-import { getMissingEnv } from "../config/env.js";
+import { getEnvProblems, getCorsOrigins } from "../config/env.js";
 
-describe("getMissingEnv", () => {
+const LONG_SECRET = "x".repeat(32);
+
+describe("getEnvProblems", () => {
   it("lists missing and blank required variables", () => {
-    expect(getMissingEnv({})).toEqual(["MONGO_URI", "JWT_SECRET"]);
-    expect(getMissingEnv({ MONGO_URI: "  ", JWT_SECRET: "x" })).toEqual([
-      "MONGO_URI",
+    expect(getEnvProblems({})).toEqual([
+      "MONGO_URI is required",
+      "JWT_SECRET is required",
+    ]);
+    expect(
+      getEnvProblems({ MONGO_URI: "  ", JWT_SECRET: LONG_SECRET })
+    ).toEqual(["MONGO_URI is required"]);
+  });
+
+  it("requires a long enough JWT secret", () => {
+    expect(getEnvProblems({ MONGO_URI: "m", JWT_SECRET: "short" })).toEqual([
+      "JWT_SECRET must be at least 32 characters",
     ]);
   });
 
-  it("returns nothing when everything is set", () => {
-    expect(getMissingEnv({ MONGO_URI: "m", JWT_SECRET: "s" })).toEqual([]);
+  it("returns nothing when everything is fine", () => {
+    expect(getEnvProblems({ MONGO_URI: "m", JWT_SECRET: LONG_SECRET })).toEqual(
+      []
+    );
+  });
+});
+
+describe("getCorsOrigins", () => {
+  it("splits a comma separated list and ignores blanks", () => {
+    expect(
+      getCorsOrigins({
+        CORS_ORIGINS: " https://a.example.test, ,https://b.example.test ",
+      })
+    ).toEqual(["https://a.example.test", "https://b.example.test"]);
+  });
+
+  it("is empty when unset and never contains a wildcard", () => {
+    expect(getCorsOrigins({})).toEqual([]);
+    expect(
+      getCorsOrigins({ CORS_ORIGINS: "*, https://a.example.test" })
+    ).toEqual(["https://a.example.test"]);
   });
 });

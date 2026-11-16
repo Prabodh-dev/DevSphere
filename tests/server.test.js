@@ -56,10 +56,21 @@ describe("server startup", () => {
     expect(output()).toContain("JWT_SECRET");
   });
 
+  it("exits with an error when the JWT secret is too short", async () => {
+    const { exited, output } = startServer({
+      MONGO_URI: process.env.TEST_MONGO_URI,
+      JWT_SECRET: "short",
+    });
+    const { code } = await exited;
+
+    expect(code).not.toBe(0);
+    expect(output()).toContain("JWT_SECRET must be at least 32 characters");
+  });
+
   it("exits with an error when the database is unreachable", async () => {
     const { exited } = startServer({
       MONGO_URI: "mongodb://127.0.0.1:1/devsphere_test",
-      JWT_SECRET: "test-only-secret",
+      JWT_SECRET: "test-only-secret-that-is-long-enough-123",
       PORT: String(await freePort()),
     });
     const { code } = await exited;
@@ -70,7 +81,7 @@ describe("server startup", () => {
     const port = await freePort();
     const { child, exited } = startServer({
       MONGO_URI: process.env.TEST_MONGO_URI,
-      JWT_SECRET: "test-only-secret",
+      JWT_SECRET: "test-only-secret-that-is-long-enough-123",
       PORT: String(port),
       REDIS_URL: process.env.REDIS_URL,
     });

@@ -1,5 +1,6 @@
 // models/Notification.js
 import mongoose from "mongoose";
+import "../config/mongoose.js";
 
 const notificationSchema = new mongoose.Schema(
   {

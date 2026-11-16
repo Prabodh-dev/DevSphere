@@ -1,36 +1,49 @@
 import http from "http";
 import { io as connect } from "socket.io-client";
+import app from "../../app.js";
 import { setupSocketIO } from "../../socket.js";
 
-export async function startSocketServer() {
-  const server = http.createServer();
-  const io = setupSocketIO(server);
+export async function startSocketServer(options) {
+  const server = http.createServer(app);
+  const io = setupSocketIO(server, options);
+  // Lets REST handlers (block, group changes, notifications) reach sockets.
+  app.set("io", io);
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address();
   const clients = [];
 
+  const open = (auth, extra = {}) => {
+    const socket = connect(`http://127.0.0.1:${port}`, {
+      auth,
+      forceNew: true,
+      reconnection: false,
+      ...extra,
+    });
+    clients.push(socket);
+    return socket;
+  };
+
   return {
+    io,
     url: `http://127.0.0.1:${port}`,
-    // Connects a client and resolves once the connection is established.
-    async client(userId) {
-      const socket = connect(`http://127.0.0.1:${port}`, {
-        query: userId ? { userId } : {},
-        forceNew: true,
-        reconnection: false,
+    // Connects as a user and resolves once the connection is established.
+    async client(user, extra) {
+      const socket = open({ token: user.token }, extra);
+      await new Promise((resolve, reject) => {
+        socket.once("connect", resolve);
+        socket.once("connect_error", reject);
       });
-      clients.push(socket);
-      await new Promise((resolve) => socket.once("connect", resolve));
       return socket;
     },
-    // For connections the server is expected to reject.
-    anonymous(query = {}) {
-      const socket = connect(`http://127.0.0.1:${port}`, {
-        query,
-        forceNew: true,
-        reconnection: false,
+    // For connections that may be refused; resolves with the outcome.
+    async tryConnect(auth, extra) {
+      const socket = open(auth, extra);
+      return new Promise((resolve) => {
+        socket.once("connect", () => resolve({ socket, connected: true }));
+        socket.once("connect_error", (err) =>
+          resolve({ socket, connected: false, error: err.message })
+        );
       });
-      clients.push(socket);
-      return socket;
     },
     async close() {
       clients.forEach((c) => c.close());

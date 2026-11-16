@@ -1,32 +1,39 @@
 // socket.js
 import { Server } from "socket.io";
+import jwt from "jsonwebtoken";
 import { getRedisClient, initRedis } from "./config/redis.js";
+import { getCorsOrigins } from "./config/env.js";
+import Chat from "./models/Chat.js";
 import LiveCode from "./models/LiveCode.js";
-import { isObjectId } from "./utils/validate.js";
+import User from "./models/User.js";
+import { chatRoom, liveCodeRoom, userRoom } from "./utils/rooms.js";
+import {
+  chatIdPayload,
+  codeChangePayload,
+  joinLiveCodePayload,
+  messagePayload,
+} from "./schemas/socket.js";
 
-const MAX_CODE_LENGTH = 200000;
+// Largest single packet the transport accepts.
+const MAX_PACKET_BYTES = 512 * 1024;
+
+const DEFAULT_RATE_LIMIT = { max: 100, windowMs: 10 * 1000 };
+// Events dropped in a row before the connection is closed.
+const MAX_VIOLATIONS = 50;
 
 // Raised for bad client input; the message is safe to send back.
 class SocketInputError extends Error {}
 
-const requireChatId = (value) => {
-  if (!isObjectId(value)) throw new SocketInputError("Invalid chatId");
-  return value;
-};
-
-const requireObject = (value) => {
-  if (!value || typeof value !== "object") {
-    throw new SocketInputError("Invalid payload");
+const parse = (schema, payload) => {
+  const result = schema.safeParse(payload);
+  if (!result.success) {
+    const issue = result.error.issues[0];
+    const path = issue.path.join(".");
+    throw new SocketInputError(
+      path ? `${path}: ${issue.message}` : "Invalid payload"
+    );
   }
-  return value;
-};
-
-const optionalText = (value, name, fallback) => {
-  if (value === undefined || value === null) return fallback;
-  if (typeof value !== "string" || value.length > 200) {
-    throw new SocketInputError(`Invalid ${name}`);
-  }
-  return value;
+  return result.data;
 };
 
 // Presence is best effort: a Redis problem must never break a socket.
@@ -40,23 +47,72 @@ const setPresence = async (command, userId) => {
   }
 };
 
-export const setupSocketIO = (server) => {
+// Identity comes from the token only.
+const authenticate = async (socket, next) => {
+  try {
+    const token = socket.handshake.auth?.token;
+    if (typeof token !== "string" || !token) throw new Error("no token");
+
+    const { userId } = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(userId).select("username isBlocked");
+    if (!user || user.isBlocked) throw new Error("not allowed");
+
+    socket.data.userId = user._id.toString();
+    socket.data.username = user.username;
+    next();
+  } catch {
+    next(new Error("Authentication failed"));
+  }
+};
+
+const isChatMember = async (chatId, userId) =>
+  Boolean(await Chat.exists({ _id: chatId, members: userId }));
+
+export const setupSocketIO = (server, options = {}) => {
+  const rateLimit = { ...DEFAULT_RATE_LIMIT, ...options.rateLimit };
+  const origins = getCorsOrigins();
+
   const io = new Server(server, {
     cors: {
-      origin: "*",
+      origin: origins.length ? origins : false,
       methods: ["GET", "POST"],
     },
+    maxHttpBufferSize: MAX_PACKET_BYTES,
   });
 
   // Connects in the background; never blocks connections.
   initRedis();
 
+  io.use(authenticate);
+
   io.on("connection", (socket) => {
-    const userId = socket.handshake.query.userId;
-    if (!isObjectId(userId)) return socket.disconnect();
+    const userId = socket.data.userId;
 
     // Personal room, so events can be addressed to a user.
-    socket.join(userId);
+    socket.join(userRoom(userId));
+
+    // Per-connection allowance of incoming events.
+    let windowStart = Date.now();
+    let count = 0;
+    let violations = 0;
+    socket.use(([event], next) => {
+      const now = Date.now();
+      if (now - windowStart >= rateLimit.windowMs) {
+        windowStart = now;
+        count = 0;
+      }
+      count += 1;
+      if (count <= rateLimit.max) {
+        violations = 0;
+        return next();
+      }
+
+      violations += 1;
+      if (violations === 1) {
+        socket.emit("socket-error", { event, message: "Rate limit exceeded" });
+      }
+      if (violations >= MAX_VIOLATIONS) socket.disconnect(true);
+    });
 
     // Wraps a handler so bad input or a failing query is reported to the
     // client and logged, instead of becoming an unhandled rejection.
@@ -75,36 +131,48 @@ export const setupSocketIO = (server) => {
       });
     };
 
+    // Validates the chat id and checks that this user belongs to the chat.
+    const requireMember = async (chatId) => {
+      const id = parse(chatIdPayload, chatId);
+      if (!(await isChatMember(id, userId))) {
+        throw new SocketInputError("Not a member of this chat");
+      }
+      return id;
+    };
+
     // ========== Chat Events ==========
-    on("join-chat", (chatId) => {
-      socket.join(requireChatId(chatId));
+    on("join-chat", async (chatId) => {
+      const id = await requireMember(chatId);
+      socket.join(chatRoom(id));
     });
 
-    on("send-message", (data) => {
-      const { chatId, message } = requireObject(data);
-      requireChatId(chatId);
-      socket.to(chatId).emit("receive-message", message);
+    on("send-message", async (data) => {
+      const { chatId, message } = parse(messagePayload, data);
+      await requireMember(chatId);
+      socket.to(chatRoom(chatId)).emit("receive-message", message);
     });
 
-    on("group-message", (data) => {
-      const { chatId, message } = requireObject(data);
-      requireChatId(chatId);
-      io.to(chatId).emit("receive-message", message);
+    on("group-message", async (data) => {
+      const { chatId, message } = parse(messagePayload, data);
+      await requireMember(chatId);
+      io.to(chatRoom(chatId)).emit("receive-message", message);
     });
 
-    on("typing", (chatId) => {
-      socket.to(requireChatId(chatId)).emit("typing", userId);
+    on("typing", async (chatId) => {
+      const id = await requireMember(chatId);
+      socket.to(chatRoom(id)).emit("typing", userId);
     });
 
-    on("stop-typing", (chatId) => {
-      socket.to(requireChatId(chatId)).emit("stop-typing", userId);
+    on("stop-typing", async (chatId) => {
+      const id = await requireMember(chatId);
+      socket.to(chatRoom(id)).emit("stop-typing", userId);
     });
 
     // ========== Live Code Editor ==========
     on("join-live-code", async (data) => {
-      const { chatId } = requireObject(data);
-      requireChatId(chatId);
-      socket.join(`live-${chatId}`);
+      const { chatId } = parse(joinLiveCodePayload, data);
+      await requireMember(chatId);
+      socket.join(liveCodeRoom(chatId));
       const doc = await LiveCode.findOne({ chatId });
       if (doc) {
         socket.emit("load-code", doc);
@@ -112,13 +180,14 @@ export const setupSocketIO = (server) => {
     });
 
     on("code-change", async (data) => {
-      const { chatId, code, language, fileName } = requireObject(data);
-      requireChatId(chatId);
-      if (typeof code !== "string" || code.length > MAX_CODE_LENGTH) {
-        throw new SocketInputError("Invalid code");
-      }
-      const lang = optionalText(language, "language", "plaintext");
-      const name = optionalText(fileName, "fileName", "main");
+      const { chatId, code, language, fileName } = parse(
+        codeChangePayload,
+        data
+      );
+      await requireMember(chatId);
+
+      const lang = language ?? "plaintext";
+      const name = fileName ?? "main";
 
       await LiveCode.findOneAndUpdate(
         { chatId },
@@ -126,15 +195,8 @@ export const setupSocketIO = (server) => {
         { upsert: true }
       );
       socket
-        .to(`live-${chatId}`)
+        .to(liveCodeRoom(chatId))
         .emit("code-update", { code, language: lang, fileName: name });
-    });
-
-    // ========== Notifications ==========
-    on("send-notification", (data) => {
-      const { toUserId, notification } = requireObject(data);
-      if (!isObjectId(toUserId)) throw new SocketInputError("Invalid toUserId");
-      io.to(toUserId).emit("receive-notification", notification);
     });
 
     // ========== Disconnect ==========

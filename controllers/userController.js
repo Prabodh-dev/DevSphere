@@ -1,10 +1,11 @@
 import User from "../models/User.js";
 import { badRequest, notFound } from "../utils/httpError.js";
-import { requireObjectId, requireString } from "../utils/validate.js";
+import { publicUserView } from "../utils/serializers.js";
+import { notifyUser } from "../utils/notify.js";
 
 // Follow a user
 export const followUser = async (req, res) => {
-  const targetUserId = requireObjectId(req.params.id, "user id");
+  const targetUserId = req.valid.params.id;
   const currentUserId = req.user._id;
 
   if (targetUserId === currentUserId.toString()) {
@@ -26,12 +27,19 @@ export const followUser = async (req, res) => {
   await targetUser.save();
   await currentUser.save();
 
+  await notifyUser(req.app.get("io"), {
+    userId: targetUser._id,
+    type: "follow",
+    content: `${currentUser.username} started following you`,
+    fromUser: currentUser._id,
+  });
+
   res.status(200).json({ message: "User followed successfully" });
 };
 
 // Unfollow a user
 export const unfollowUser = async (req, res) => {
-  const targetUserId = requireObjectId(req.params.id, "user id");
+  const targetUserId = req.valid.params.id;
   const currentUserId = req.user._id;
 
   const targetUser = await User.findById(targetUserId);
@@ -54,40 +62,31 @@ export const unfollowUser = async (req, res) => {
 
 // Get followers of a user
 export const getFollowers = async (req, res) => {
-  const userId = requireObjectId(req.params.id, "user id");
-  const user = await User.findById(userId).populate(
+  const user = await User.findById(req.valid.params.id).populate(
     "followers",
-    "username email avatar"
+    "username avatarKey"
   );
   if (!user) throw notFound("User not found");
 
-  res.status(200).json(user.followers);
+  res.status(200).json(await Promise.all(user.followers.map(publicUserView)));
 };
 
 // Get following of a user
 export const getFollowing = async (req, res) => {
-  const userId = requireObjectId(req.params.id, "user id");
-  const user = await User.findById(userId).populate(
+  const user = await User.findById(req.valid.params.id).populate(
     "following",
-    "username email avatar"
+    "username avatarKey"
   );
   if (!user) throw notFound("User not found");
 
-  res.status(200).json(user.following);
+  res.status(200).json(await Promise.all(user.following.map(publicUserView)));
 };
 
 // Update user's tags
 export const updateTags = async (req, res) => {
-  const { tags } = req.body ?? {};
-
-  if (!Array.isArray(tags) || tags.length > 20) {
-    throw badRequest("Tags must be an array");
-  }
-  const cleanTags = tags.map((tag) => requireString(tag, "tag", { max: 30 }));
-
   const user = await User.findByIdAndUpdate(
     req.user._id,
-    { tags: cleanTags },
+    { tags: req.valid.body.tags },
     { new: true }
   );
 
@@ -96,16 +95,16 @@ export const updateTags = async (req, res) => {
 
 // Search users by tag
 export const searchUsersByTag = async (req, res) => {
-  const { tag } = req.query;
-
-  if (tag === undefined || tag === "") {
-    throw badRequest("Tag query is required");
-  }
-  const cleanTag = requireString(tag, "tag", { max: 30 });
-
-  const users = await User.find({ tags: { $in: [cleanTag] } }).select(
-    "username email avatar tags"
+  const users = await User.find({ tags: req.valid.query.tag }).select(
+    "username avatarKey tags"
   );
 
-  res.status(200).json(users);
+  res.status(200).json(
+    await Promise.all(
+      users.map(async (user) => ({
+        ...(await publicUserView(user)),
+        tags: user.tags,
+      }))
+    )
+  );
 };

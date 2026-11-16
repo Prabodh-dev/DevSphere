@@ -8,7 +8,7 @@ import { bearer } from "./helpers/users.js";
 const credentials = {
   username: "alice",
   email: "alice@example.test",
-  password: "password-for-tests",
+  password: "password-for-tests-1",
 };
 
 beforeAll(connectTestDb);
@@ -50,7 +50,7 @@ describe("auth flow (current behaviour)", () => {
     expect(res.body.token).toEqual(expect.any(String));
   });
 
-  it("returns 401 for a wrong password and 404 for an unknown email", async () => {
+  it("returns 401 for a wrong password and for an unknown email", async () => {
     await request(app).post("/api/auth/register").send(credentials);
 
     const wrong = await request(app)
@@ -61,7 +61,7 @@ describe("auth flow (current behaviour)", () => {
     const unknown = await request(app)
       .post("/api/auth/login")
       .send({ email: "nobody@example.test", password: "x" });
-    expect(unknown.status).toBe(404);
+    expect(unknown.status).toBe(401);
   });
 
   it("guards protected routes with a bearer token", async () => {

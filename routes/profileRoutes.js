@@ -6,17 +6,20 @@ import {
   getUserProfileById,
 } from "../controllers/profileController.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
-import upload from "../utils/multer.js";
+import validate from "../middlewares/validate.js";
+import { uploadAvatar } from "../utils/multer.js";
+import { profileBody, profileParams } from "../schemas/index.js";
 
 const router = express.Router();
 
 router.post(
   "/",
   authMiddleware,
-  upload.single("avatar"),
+  uploadAvatar.single("avatar"),
+  validate({ body: profileBody }),
   createOrUpdateProfile
 );
 router.get("/me", authMiddleware, getMyProfile);
-router.get("/:userId", getUserProfileById);
+router.get("/:userId", validate({ params: profileParams }), getUserProfileById);
 
 export default router;

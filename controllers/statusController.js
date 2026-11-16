@@ -1,44 +1,49 @@
+import mongoose from "mongoose";
 import Status from "../models/Status.js";
-import { uploadToS3 } from "../utils/s3Utils.js";
+import { uploadMedia } from "../utils/s3Utils.js";
 import { badRequest } from "../utils/httpError.js";
-import { requireOneOf, requireString } from "../utils/validate.js";
+import { statusView } from "../utils/serializers.js";
 
-const STATUS_TYPES = ["text", "image", "video"];
+const VISIBLE_FOR_MS = 24 * 60 * 60 * 1000;
+// The record is kept a little longer than it is visible so its stored file
+// can be cleaned up before the TTL index removes it.
+const RECORD_GRACE_MS = 60 * 60 * 1000;
 
 /**
  * POST /api/status
  * Create a new status (text, image, or video)
  */
 export const postStatus = async (req, res) => {
-  const { type, content } = req.body ?? {};
-  const userId = req.user._id;
+  const { type, content } = req.valid.body;
 
-  if (!type) throw badRequest("Status type is required");
-  requireOneOf(type, STATUS_TYPES, "type");
-
-  let finalContent;
+  const data = { user: req.user._id, type };
 
   if (type === "text") {
-    finalContent = requireString(content, "content", { max: 1000 });
+    data.content = content;
   } else {
     if (!req.file) {
       throw badRequest("File is required for image/video status");
     }
-    finalContent = await uploadToS3(
-      req.file.buffer,
-      req.file.originalname,
-      req.file.mimetype
-    );
+    const expectsImage = type === "image";
+    if (req.file.mimetype.startsWith("image/") !== expectsImage) {
+      throw badRequest("File does not match the status type");
+    }
+    data.mediaKey = await uploadMedia({
+      buffer: req.file.buffer,
+      mimetype: req.file.mimetype,
+      prefix: "status",
+    });
   }
 
-  const status = await Status.create({
-    user: userId,
-    type,
-    content: finalContent,
-    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hrs
-  });
+  const visibleUntil = new Date(Date.now() + VISIBLE_FOR_MS);
+  data.visibleUntil = visibleUntil;
+  data.expiresAt = new Date(visibleUntil.getTime() + RECORD_GRACE_MS);
 
-  res.status(201).json({ message: "Status created", status });
+  const status = await Status.create(data);
+
+  res
+    .status(201)
+    .json({ message: "Status created", status: await statusView(status) });
 };
 
 /**
@@ -48,13 +53,24 @@ export const postStatus = async (req, res) => {
 export const getStatusFeed = async (req, res) => {
   const user = req.user;
   const followedIds = user.following || [];
+  const now = new Date();
 
   const statuses = await Status.find({
-    user: { $in: [...followedIds, user._id] },
-    expiresAt: { $gt: new Date() },
+    user: mongoose.trusted({ $in: [...followedIds, user._id] }),
+    // Records created before visibleUntil existed only have expiresAt.
+    $or: [
+      { visibleUntil: mongoose.trusted({ $gt: now }) },
+      {
+        visibleUntil: mongoose.trusted({ $exists: false }),
+        expiresAt: mongoose.trusted({ $gt: now }),
+      },
+    ],
   })
     .sort({ createdAt: -1 })
-    .populate("user", "username avatar");
+    .populate("user", "username avatarKey");
 
-  res.status(200).json({ count: statuses.length, statuses });
+  res.status(200).json({
+    count: statuses.length,
+    statuses: await Promise.all(statuses.map(statusView)),
+  });
 };

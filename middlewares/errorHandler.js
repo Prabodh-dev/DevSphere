@@ -31,8 +31,9 @@ export const errorHandler = (err, req, res, next) => {
     status = 409;
     message = "Resource already exists";
   } else if (err.name === "MulterError") {
-    status = 400;
-    message = "Invalid upload";
+    const tooLarge = err.code === "LIMIT_FILE_SIZE";
+    status = tooLarge ? 413 : 400;
+    message = tooLarge ? "File too large" : "Invalid upload";
   }
 
   if (status >= 500) {

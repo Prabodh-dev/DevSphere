@@ -1,12 +1,9 @@
 import Chat from "../models/Chat.js";
 import { forbidden, notFound } from "./httpError.js";
-import { requireObjectId } from "./validate.js";
 
 // Loads a chat and makes sure the user belongs to it.
-// 400 for a malformed id, 404 for a missing chat, 403 for non-members.
+// 404 for a missing chat, 403 for non-members. The id must already be validated.
 export async function loadChatForMember(chatId, userId) {
-  requireObjectId(chatId, "chatId");
-
   const chat = await Chat.findById(chatId);
   if (!chat) throw notFound("Chat not found");
 

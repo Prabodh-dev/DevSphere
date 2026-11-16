@@ -1,5 +1,6 @@
 // models/Report.js
 import mongoose from "mongoose";
+import "../config/mongoose.js";
 
 const reportSchema = new mongoose.Schema(
   {
