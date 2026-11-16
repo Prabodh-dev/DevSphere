@@ -19,7 +19,7 @@ vi.mock("../utils/s3Utils.js", () => ({
 }));
 
 const { default: app } = await import("../app.js");
-const { default: User } = await import("../models/User.js");
+const { default: Follow } = await import("../models/Follow.js");
 const { connectTestDb, clearTestDb, disconnectTestDb } =
   await import("./helpers/db.js");
 const { createUser, bearer } = await import("./helpers/users.js");
@@ -65,7 +65,7 @@ describe("users", () => {
 
     const unfollow = await as(alice).post(`/api/users/${bob.id}/unfollow`);
     expect(unfollow.status).toBe(200);
-    expect((await User.findById(bob.id)).followers).toHaveLength(0);
+    expect(await Follow.countDocuments({ following: bob.id })).toBe(0);
   });
 
   it("returns 400 for invalid ids and 404 for unknown users", async () => {
@@ -180,8 +180,8 @@ describe("reports", () => {
   it("files a report and validates input", async () => {
     const report = (body) => as(alice).post("/api/report").send(body);
     const ok = await report({
-      targetType: "message",
-      targetId: missingId(),
+      targetType: "user",
+      targetId: bob.id,
       reason: "spam",
     });
     expect(ok.status).toBe(201);

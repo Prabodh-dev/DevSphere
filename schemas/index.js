@@ -55,6 +55,10 @@ export const profileParams = z.object({ userId: objectId });
 
 // ---- users ----
 export const userIdParams = z.object({ id: objectId });
+export const pageQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(200).default(100),
+  skip: z.coerce.number().int().min(0).default(0),
+});
 export const tagsBody = z.object({ tags: tagList });
 export const tagQuery = z.object({ tag: text(30) });
 
@@ -122,7 +126,7 @@ export const reportBody = z.object({
   reason: text(1000),
 });
 export const removeParams = z.object({
-  type: z.enum(["status", "message"]),
+  type: z.enum(["status", "message", "user"]),
   id: objectId,
 });
 
@@ -130,4 +134,8 @@ export const removeParams = z.object({
 export const highlightBody = z.object({
   code: z.string().min(1).max(20000),
   language: text(50).optional(),
+});
+
+export const reportsQuery = z.object({
+  status: z.enum(["open", "resolved", "all"]).default("open"),
 });

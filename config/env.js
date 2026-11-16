@@ -40,6 +40,15 @@ export const getTrustProxy = (env = process.env) =>
 export const isCookieSecure = (env = process.env) =>
   String(env.COOKIE_SECURE ?? "").trim() === "true";
 
+// Mongoose builds missing indexes on startup unless this is off. On by default,
+// except in production where indexes are synced explicitly (pnpm db:indexes).
+export const getAutoIndex = (env = process.env) => {
+  const flag = String(env.MONGO_AUTO_INDEX ?? "").trim();
+  if (flag === "true") return true;
+  if (flag === "false") return false;
+  return String(env.NODE_ENV ?? "").trim() !== "production";
+};
+
 // Returns a list of human readable problems with the environment.
 export const getEnvProblems = (env = process.env) => {
   const problems = REQUIRED.filter((name) => isBlank(env[name])).map(
@@ -75,6 +84,12 @@ export const getEnvProblems = (env = process.env) => {
     !["true", "false"].includes(String(env.COOKIE_SECURE).trim())
   ) {
     problems.push("COOKIE_SECURE must be true or false");
+  }
+  if (
+    !isBlank(env.MONGO_AUTO_INDEX) &&
+    !["true", "false"].includes(String(env.MONGO_AUTO_INDEX).trim())
+  ) {
+    problems.push("MONGO_AUTO_INDEX must be true or false");
   }
   return problems;
 };

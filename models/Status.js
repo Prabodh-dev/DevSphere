@@ -9,6 +9,7 @@ const statusSchema = new mongoose.Schema(
     // Text statuses keep their text here; media statuses keep it in mediaKey.
     content: {
       type: String,
+      maxlength: 1000,
       required: function () {
         return this.type === "text";
       },
@@ -21,6 +22,8 @@ const statusSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+statusSchema.index({ user: 1, visibleUntil: 1 });
 
 // TTL: the record is removed once expiresAt has passed.
 statusSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });

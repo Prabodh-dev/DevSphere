@@ -10,7 +10,12 @@ import User from "../models/User.js";
 import Status from "../models/Status.js";
 import Message from "../models/Message.js";
 import Report from "../models/Report.js";
-import { connectTestDb, clearTestDb, disconnectTestDb } from "./helpers/db.js";
+import {
+  connectTestDb,
+  clearTestDb,
+  disconnectTestDb,
+  testMongoUri,
+} from "./helpers/db.js";
 import { createUser, makeAdmin, bearer } from "./helpers/users.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -102,12 +107,13 @@ describe("admin routes", () => {
 
 describe("admin removal of reported content", () => {
   it("validates the type and the id", async () => {
-    const msg = await Message.create({ text: "x" });
+    const msg = await Message.create({
+      chat: missingId(),
+      sender: member.id,
+      text: "x",
+    });
     expect(
       (await as(admin).delete(`/api/admin/remove/other/${msg.id}`)).status
-    ).toBe(400);
-    expect(
-      (await as(admin).delete(`/api/admin/remove/user/${msg.id}`)).status
     ).toBe(400);
     expect(
       (await as(admin).delete("/api/admin/remove/message/nope")).status
@@ -119,8 +125,16 @@ describe("admin removal of reported content", () => {
   });
 
   it("deletes the item and the reports that point at it", async () => {
-    const msg = await Message.create({ text: "x" });
-    const other = await Message.create({ text: "y" });
+    const msg = await Message.create({
+      chat: missingId(),
+      sender: member.id,
+      text: "x",
+    });
+    const other = await Message.create({
+      chat: missingId(),
+      sender: member.id,
+      text: "y",
+    });
     await Report.create([
       {
         reportedBy: member.id,
@@ -145,8 +159,13 @@ describe("admin removal of reported content", () => {
     const res = await as(admin).delete(`/api/admin/remove/message/${msg.id}`);
     expect(res.status).toBe(200);
     expect(await Message.findById(msg.id)).toBeNull();
-    expect(await Report.countDocuments({ targetId: msg.id })).toBe(0);
-    expect(await Report.countDocuments({ targetId: other.id })).toBe(1);
+    // The reports stay for the record, marked as resolved.
+    expect(
+      await Report.countDocuments({ targetId: msg.id, status: "resolved" })
+    ).toBe(2);
+    expect(
+      await Report.countDocuments({ targetId: other.id, status: "open" })
+    ).toBe(1);
   });
 
   it("removes a status and its report", async () => {
@@ -165,14 +184,13 @@ describe("admin removal of reported content", () => {
     const res = await as(admin).delete(`/api/admin/remove/status/${status.id}`);
     expect(res.status).toBe(200);
     expect(await Status.findById(status.id)).toBeNull();
-    expect(await Report.countDocuments()).toBe(0);
+    expect(await Report.countDocuments({ status: "resolved" })).toBe(1);
   });
 });
 
 describe("make-admin script", () => {
   function run(args) {
-    const uri = new URL(process.env.TEST_MONGO_URI);
-    uri.pathname = "/devsphere_test";
+    const uri = new URL(testMongoUri());
     const child = spawn(process.execPath, ["scripts/make-admin.js", ...args], {
       cwd: root,
       env: controlledEnv({ MONGO_URI: uri.toString() }),

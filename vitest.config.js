@@ -5,7 +5,9 @@ export default defineConfig({
     environment: "node",
     include: ["tests/**/*.test.js"],
     setupFiles: ["tests/setup.js"],
-    // Integration tests share one database, so run files one at a time.
+    globalSetup: ["tests/globalSetup.js"],
+    // Every file has its own database, but the files are still run one at a
+    // time to keep timing-sensitive socket tests steady.
     fileParallelism: false,
     testTimeout: 15000,
     hookTimeout: 30000,

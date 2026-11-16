@@ -43,26 +43,29 @@ the process is up and connected to the database.
 
 Copy `.env.example` to `.env` and set:
 
-| Variable                   | Required    | Purpose                                                                  |
-| -------------------------- | ----------- | ------------------------------------------------------------------------ |
-| `MONGO_URI`                | yes         | MongoDB connection string                                                |
-| `JWT_SECRET`               | yes         | Secret used to sign tokens, at least 32 characters                       |
-| `PORT`                     | no          | HTTP port, defaults to `5000`                                            |
-| `CORS_ORIGINS`             | no          | Comma separated browser origins allowed to call the API (none if empty)  |
-| `TRUST_PROXY`              | no          | Number of reverse proxies in front of the app, default `0`               |
-| `ACCESS_TOKEN_TTL`         | no          | Access token lifetime (`30s`, `15m`, `2h`, `1d`), default `15m`          |
-| `REFRESH_TOKEN_TTL_DAYS`   | no          | Refresh token lifetime in days, default `30`                             |
-| `COOKIE_SECURE`            | no          | `true` when served over HTTPS, so the refresh cookie is `Secure`         |
-| `REFRESH_RATE_LIMIT_MAX`   | no          | Refresh requests per 15 minutes, default `60`                            |
-| `REDIS_URL`                | no          | Redis URL for online presence; the app works without it                  |
-| `RATE_LIMIT_MAX`           | no          | Requests per 15 minutes for `/api`, default `300`                        |
-| `AUTH_RATE_LIMIT_MAX`      | no          | Login and register requests per 15 minutes, default `10`                 |
-| `HIGHLIGHT_RATE_LIMIT_MAX` | no          | Snippet highlight requests per minute, default `30`                      |
-| `AWS_ACCESS_KEY`           | for uploads | AWS access key id (optional if the environment provides AWS credentials) |
-| `AWS_SECRET_KEY`           | for uploads | AWS secret access key                                                    |
-| `AWS_REGION`               | for uploads | AWS region of the bucket                                                 |
-| `AVATAR_BUCKET`            | for uploads | S3 bucket for avatars and status media                                   |
-| `MEDIA_URL_TTL_SECONDS`    | no          | Lifetime of signed media links, default `300`, at most `3600`            |
+| Variable                   | Required    | Purpose                                                                                  |
+| -------------------------- | ----------- | ---------------------------------------------------------------------------------------- |
+| `MONGO_URI`                | yes         | MongoDB connection string                                                                |
+| `JWT_SECRET`               | yes         | Secret used to sign tokens, at least 32 characters                                       |
+| `PORT`                     | no          | HTTP port, defaults to `5000`                                                            |
+| `NODE_ENV`                 | no          | `development`, `test` or `production`                                                    |
+| `MONGO_AUTO_INDEX`         | no          | `true` or `false`; build missing indexes at startup, default `true` except in production |
+| `CORS_ORIGINS`             | no          | Comma separated browser origins allowed to call the API (none if empty)                  |
+| `TRUST_PROXY`              | no          | Number of reverse proxies in front of the app, default `0`                               |
+| `ACCESS_TOKEN_TTL`         | no          | Access token lifetime (`30s`, `15m`, `2h`, `1d`), default `15m`                          |
+| `REFRESH_TOKEN_TTL_DAYS`   | no          | Refresh token lifetime in days, default `30`                                             |
+| `COOKIE_SECURE`            | no          | `true` when served over HTTPS, so the refresh cookie is `Secure`                         |
+| `REFRESH_RATE_LIMIT_MAX`   | no          | Refresh requests per 15 minutes, default `60`                                            |
+| `REDIS_URL`                | no          | Redis URL for online presence; the app works without it                                  |
+| `REDIS_KEY_PREFIX`         | no          | Prefix for the Redis keys the app writes, default none                                   |
+| `RATE_LIMIT_MAX`           | no          | Requests per 15 minutes for `/api`, default `300`                                        |
+| `AUTH_RATE_LIMIT_MAX`      | no          | Login and register requests per 15 minutes, default `10`                                 |
+| `HIGHLIGHT_RATE_LIMIT_MAX` | no          | Snippet highlight requests per minute, default `30`                                      |
+| `AWS_ACCESS_KEY`           | for uploads | AWS access key id (optional if the environment provides AWS credentials)                 |
+| `AWS_SECRET_KEY`           | for uploads | AWS secret access key                                                                    |
+| `AWS_REGION`               | for uploads | AWS region of the bucket                                                                 |
+| `AVATAR_BUCKET`            | for uploads | S3 bucket for avatars and status media                                                   |
+| `MEDIA_URL_TTL_SECONDS`    | no          | Lifetime of signed media links, default `300`, at most `3600`                            |
 
 The server exits at startup if `MONGO_URI` or `JWT_SECRET` is missing, if
 `JWT_SECRET` is shorter than 32 characters, if a duration or count above is
@@ -119,6 +122,120 @@ Details:
 - Tokens issued before this change (7 day tokens without a session) are no
   longer accepted. Everyone signs in once more.
 
+## Data model
+
+```mermaid
+erDiagram
+    User ||--o| UserProfile : "has"
+    User ||--o{ Follow : "follower"
+    User ||--o{ Follow : "following"
+    User ||--o{ Session : "signs in with"
+    User }o--o{ Chat : "member of"
+    Chat ||--o{ Message : "contains"
+    Chat |o--o| Message : "latestMessage"
+    User ||--o{ Message : "sends"
+    Chat ||--o| LiveCode : "shared code"
+    User ||--o{ Status : "posts"
+    User ||--o{ Notification : "receives"
+    User ||--o{ Report : "files"
+
+    User {
+        string username
+        string email
+        string avatarKey
+        string[] tags
+        string role
+        boolean isBlocked
+    }
+    UserProfile {
+        string bio
+        string github
+        string linkedin
+        string website
+    }
+    Follow {
+        id follower
+        id following
+        date createdAt
+    }
+    Session {
+        string familyId
+        string tokenHash
+        date expiresAt
+        date revokedAt
+    }
+    Chat {
+        boolean isGroupChat
+        string chatName
+        id[] members
+        id[] admins
+        id latestMessage
+    }
+    Message {
+        id chat
+        id sender
+        string type
+        string text
+    }
+    LiveCode {
+        id chatId
+        string code
+    }
+    Status {
+        string type
+        date visibleUntil
+        date expiresAt
+    }
+    Notification {
+        string type
+        boolean seen
+    }
+    Report {
+        string targetType
+        id targetId
+        string status
+    }
+```
+
+The user record owns the username, avatar and tags; the profile only holds the
+bio and links. A follow is one `Follow` document with a unique
+`(follower, following)` pair, so following is safe to repeat or race. Each chat
+points at its newest message through `latestMessage`, which drives the chat list
+order and preview. A report targets a message, a status or a user (by
+`targetType` and `targetId`) and stays on record, marked `resolved`, after an
+admin acts on it.
+
+## Migrations and indexes
+
+Data changes ship as ordered, repeatable migrations in `migrations/`. They never
+run when the server starts.
+
+```bash
+pnpm migrate --dry-run   # report what would change, write nothing
+pnpm migrate             # apply pending migrations
+pnpm db:indexes          # create missing indexes and drop stale ones
+```
+
+Applied steps are recorded in the `migrations` collection, and every step is
+safe to run more than once. When upgrading an existing database, run
+`pnpm migrate` first and `pnpm db:indexes` after it (the unique indexes need the
+cleaned-up data). Back up the database before the first run.
+
+| Step                            | What it does                                                                                                                             |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `001-user-timestamps`           | Fills `createdAt` (from the id when missing) and `updatedAt` on users                                                                    |
+| `002-follows-from-user-arrays`  | Turns the embedded follower and following arrays into `Follow` documents, skipping duplicates and unknown users, then removes the arrays |
+| `003-profile-fields-to-user`    | Moves profile-only avatar and tags onto the user (tags are merged, at most 20) and removes the profile copies                            |
+| `004-chat-latest-message`       | Sets `latestMessage` on chats that already have messages                                                                                 |
+| `005-merge-duplicate-live-code` | Keeps the most recently updated live code document per chat                                                                              |
+| `006-report-status`             | Gives reports a status and resolves repeat open reports from the same user                                                               |
+
+Mongoose builds missing indexes at startup when `MONGO_AUTO_INDEX` is `true`.
+That is the default, except when `NODE_ENV=production` (the Docker image sets
+it), where indexes are synced explicitly with `pnpm db:indexes` instead. Use
+`pnpm db:indexes --dry-run` to see the difference first. The compose file turns
+startup indexing on for the local database.
+
 ## Admin access
 
 There is no default admin. Register a normal account, then promote it:
@@ -168,13 +285,13 @@ Auth (`/api/auth`)
 
 Other areas
 
-- `/profile`: `POST /` (with optional `avatar` file), `GET /me`, `GET /:userId` (public).
-- `/users`: follow and unfollow, followers, following, `PATCH /me/tags`, `GET /?tag=`.
+- `/profile`: `POST /` (bio, links, tags and an optional `avatar` file), `GET /me`, `GET /:userId` (public). Responses include follower and following counts.
+- `/users`: follow and unfollow, `GET /:id/followers` and `/following` (`limit`, `skip`), `PATCH /me/tags`, `GET /?tag=`.
 - `/chat`: `POST /access`, `GET /`, `POST /message`, `GET /message/:chatId`.
 - `/group`: `POST /create`, `PATCH /add`, `/remove`, `/rename`.
 - `/status`: `POST /` (text, image or video), `GET /feed`.
-- `/snippets/highlight` (public, rate limited), `/live-code/:chatId`, `/notifications`, `/report`.
-- `/admin` (admin role only): users, block and unblock, reports, remove reported content.
+- `/snippets/highlight` (public, rate limited), `/live-code/:chatId`, `/notifications`, `/report` (the target must exist; one open report per user and target).
+- `/admin` (admin role only): users, block and unblock, `GET /reports?status=open|resolved|all`, `DELETE /remove/:type/:id` (message, status, or user, which blocks the account).
 - `GET /healthz` (outside `/api`): process and database status.
 
 ## Scripts

@@ -12,6 +12,7 @@ const chatSchema = new mongoose.Schema(
     chatName: {
       type: String,
       trim: true,
+      maxlength: 100,
     },
     members: [
       {
@@ -31,12 +32,14 @@ const chatSchema = new mongoose.Schema(
     },
     groupAvatar: {
       type: String,
-      default: "", // Optional: Cloudinary/S3 image for group avatar
+      default: "", // Optional image for the group
+      maxlength: 300,
     },
   },
   { timestamps: true }
 );
 
-chatSchema.index({ members: 1 });
+// Chat lists: a member's chats, most recent activity first.
+chatSchema.index({ members: 1, updatedAt: -1 });
 
 export default mongoose.model("Chat", chatSchema);

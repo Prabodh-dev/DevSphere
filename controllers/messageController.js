@@ -35,6 +35,11 @@ export const accessChat = async (req, res) => {
 export const fetchChats = async (req, res) => {
   const chats = await Chat.find({ members: req.user._id })
     .populate("members", "username avatarKey")
+    .populate({
+      path: "latestMessage",
+      select: "sender type text createdAt",
+      populate: { path: "sender", select: "username" },
+    })
     .sort({ updatedAt: -1 });
   res.status(200).json(await Promise.all(chats.map(chatView)));
 };
@@ -55,7 +60,8 @@ export const sendMessage = async (req, res) => {
   }
 
   const message = await Message.create(messageData);
-  await Chat.findByIdAndUpdate(chat._id, { updatedAt: new Date() });
+  // Also moves the chat to the top of the list (its updatedAt changes).
+  await Chat.findByIdAndUpdate(chat._id, { latestMessage: message._id });
 
   const fullMsg = await Message.findById(message._id)
     .populate("sender", "username")

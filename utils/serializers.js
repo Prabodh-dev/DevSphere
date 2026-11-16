@@ -1,4 +1,6 @@
 import { getSignedMediaUrl } from "./s3Utils.js";
+import { followCounts } from "./follows.js";
+import { previewOf } from "./chatPreview.js";
 
 // Only what other users may see about an account.
 export const publicUserView = async (user) => {
@@ -10,9 +12,24 @@ export const publicUserView = async (user) => {
   };
 };
 
-export const profileView = async (profile) => {
-  const { avatarKey, ...rest } = profile.toObject();
-  return { ...rest, avatar: await getSignedMediaUrl(avatarKey) };
+// A profile as shown to clients. The username, avatar and tags belong to the
+// user record; the profile holds the bio and links.
+export const profileView = async (profile, user) => {
+  const { _id, bio, github, linkedin, website, createdAt, updatedAt } =
+    profile.toObject();
+  return {
+    _id,
+    user: { _id: user._id, username: user.username },
+    avatar: await getSignedMediaUrl(user.avatarKey),
+    tags: user.tags ?? [],
+    bio,
+    github,
+    linkedin,
+    website,
+    ...(await followCounts(user._id)),
+    createdAt,
+    updatedAt,
+  };
 };
 
 // Populated `user` fields must have been selected with "username avatarKey".
@@ -36,5 +53,18 @@ export const chatView = async (chat) => {
       member.username !== undefined ? publicUserView(member) : member
     )
   );
+
+  // Only a populated message is shown; anything else means "no preview".
+  const latest = chat.latestMessage;
+  plain.latestMessage =
+    latest && latest.createdAt
+      ? {
+          sender: latest.sender?.username
+            ? { _id: latest.sender._id, username: latest.sender.username }
+            : null,
+          preview: previewOf(latest),
+          createdAt: latest.createdAt,
+        }
+      : null;
   return plain;
 };

@@ -9,6 +9,9 @@ services:
       # Point the app at the services below, whatever .env says.
       MONGO_URI: mongodb://mongo:27017/devsphere
       REDIS_URL: redis://redis:6379
+      # Local setup: build indexes at startup (the image defaults to production,
+      # where `pnpm db:indexes` is used instead).
+      MONGO_AUTO_INDEX: "true"
     depends_on:
       mongo:
         condition: service_healthy

@@ -128,3 +128,81 @@ describe("profile routes", () => {
     expect(missing.status).toBe(404);
   });
 });
+
+describe("single source of truth", () => {
+  it("keeps tags and the avatar on the user, not on the profile", async () => {
+    const res = await save()
+      .field("bio", "hi")
+      .field("tags", "node, mongo")
+      .attach("avatar", Buffer.from("fake-image"), {
+        filename: "me.png",
+        contentType: "image/png",
+      });
+    expect(res.status).toBe(200);
+
+    const user = await User.findById(alice.id).lean();
+    expect(user.tags).toEqual(["node", "mongo"]);
+    expect(user.avatarKey).toBe("avatars/test-key.png");
+
+    const stored = await UserProfile.findOne({ user: alice.id }).lean();
+    expect(stored.tags).toBeUndefined();
+    expect(stored.avatarKey).toBeUndefined();
+    expect(stored.avatar).toBeUndefined();
+    expect(stored.bio).toBe("hi");
+
+    expect(UserProfile.schema.path("tags")).toBeUndefined();
+    expect(UserProfile.schema.path("avatarKey")).toBeUndefined();
+  });
+
+  it("reads tags and avatar from the user", async () => {
+    await save().send({ bio: "hi" });
+    await User.updateOne(
+      { _id: alice.id },
+      { tags: ["go", "rust"], avatarKey: "avatars/other.png" }
+    );
+
+    const res = await request(app).get(`/api/profile/${alice.id}`);
+    expect(res.body.tags).toEqual(["go", "rust"]);
+    expect(res.body.avatar).toBe(
+      "https://signed.example.test/avatars/other.png"
+    );
+    expect(res.body.user).toMatchObject({ username: alice.username });
+    expect(Object.keys(res.body)).not.toContain("avatarKey");
+  });
+
+  it("follows changes made through the tags endpoint and the search", async () => {
+    await save().send({ bio: "hi", tags: ["node"] });
+
+    await request(app)
+      .patch("/api/users/me/tags")
+      .set(bearer(alice.token))
+      .send({ tags: ["deno"] });
+
+    const mine = await request(app)
+      .get("/api/profile/me")
+      .set(bearer(alice.token));
+    expect(mine.body.tags).toEqual(["deno"]);
+
+    const found = await request(app)
+      .get("/api/users?tag=deno")
+      .set(bearer(alice.token));
+    expect(found.body.map((u) => u.username)).toEqual([alice.username]);
+    const old = await request(app)
+      .get("/api/users?tag=node")
+      .set(bearer(alice.token));
+    expect(old.body).toEqual([]);
+  });
+
+  it("updates only the fields that were sent", async () => {
+    await save().send({
+      bio: "first",
+      tags: ["node"],
+      github: "https://example.test/a",
+    });
+    const res = await save().send({ website: "https://example.test/site" });
+    expect(res.body.bio).toBe("first");
+    expect(res.body.github).toBe("https://example.test/a");
+    expect(res.body.website).toBe("https://example.test/site");
+    expect(res.body.tags).toEqual(["node"]);
+  });
+});

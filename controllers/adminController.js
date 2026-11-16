@@ -6,6 +6,7 @@ import { badRequest, notFound } from "../utils/httpError.js";
 import { deleteMedia } from "../utils/s3Utils.js";
 import { userRoom } from "../utils/rooms.js";
 import { revokeAllForUser } from "../utils/sessions.js";
+import { refreshLatestMessage } from "../utils/chatPreview.js";
 
 const setBlocked = async (userId, isBlocked, actingUserId, io) => {
   if (isBlocked && userId === actingUserId.toString()) {
@@ -40,19 +41,39 @@ export const unblockUser = async (req, res) => {
 };
 
 export const getReports = async (req, res) => {
-  const reports = await Report.find().populate("reportedBy", "username");
+  const { status } = req.valid.query;
+  const filter = status === "all" ? {} : { status };
+
+  const reports = await Report.find(filter)
+    .sort({ createdAt: -1 })
+    .populate("reportedBy", "username");
   res.status(200).json(reports);
 };
 
+// Removes what was reported. A user is blocked rather than deleted.
 export const deleteReportedItem = async (req, res) => {
   const { type, id } = req.valid.params;
+  const io = req.app.get("io");
 
-  const Model = type === "status" ? Status : Message;
-  const deleted = await Model.findByIdAndDelete(id);
-  if (!deleted) throw notFound(`${type} not found`);
+  if (type === "user") {
+    await setBlocked(id, true, req.user._id, io);
+  } else {
+    const Model = type === "status" ? Status : Message;
+    const deleted = await Model.findByIdAndDelete(id);
+    if (!deleted) throw notFound(`${type} not found`);
 
-  if (type === "status") await deleteMedia(deleted.mediaKey);
-  await Report.deleteMany({ targetType: type, targetId: id });
+    if (type === "status") await deleteMedia(deleted.mediaKey);
+    if (type === "message")
+      await refreshLatestMessage(deleted.chat, deleted._id);
+  }
 
-  res.status(200).json({ message: `${type} deleted` });
+  // The reports stay on record, marked as handled.
+  await Report.updateMany(
+    { targetType: type, targetId: id, status: "open" },
+    { status: "resolved", resolvedAt: new Date(), resolvedBy: req.user._id }
+  );
+
+  res
+    .status(200)
+    .json({ message: type === "user" ? "user blocked" : `${type} deleted` });
 };

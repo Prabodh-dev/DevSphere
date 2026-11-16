@@ -50,7 +50,10 @@ const setPresence = async (command, userId) => {
   const client = getRedisClient();
   if (!client) return;
   try {
-    await client[command]("onlineUsers", userId);
+    await client[command](
+      `${process.env.REDIS_KEY_PREFIX ?? ""}onlineUsers`,
+      userId
+    );
   } catch (err) {
     console.warn(`Redis ${command} failed:`, err.message);
   }
@@ -211,11 +214,20 @@ export const setupSocketIO = (server, options = {}) => {
       const lang = language ?? "plaintext";
       const name = fileName ?? "main";
 
-      await LiveCode.findOneAndUpdate(
-        { chatId },
-        { code, language: lang, fileName: name, updatedBy: userId },
-        { upsert: true }
-      );
+      const update = {
+        code,
+        language: lang,
+        fileName: name,
+        updatedBy: userId,
+      };
+      try {
+        await LiveCode.findOneAndUpdate({ chatId }, update, { upsert: true });
+      } catch (err) {
+        // Two first edits arriving together: the other one created the
+        // document, so this one is now a plain update.
+        if (err.code !== 11000) throw err;
+        await LiveCode.findOneAndUpdate({ chatId }, update);
+      }
       socket
         .to(liveCodeRoom(chatId))
         .emit("code-update", { code, language: lang, fileName: name });
