@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import mongoose from "mongoose";
-import { connectTestDb, clearTestDb, disconnectTestDb } from "./helpers/db.js";
+import {
+  connectTestDb,
+  clearTestDb,
+  disconnectTestDb,
+  dropAllIndexes,
+} from "./helpers/db.js";
 
 let db;
 
@@ -9,7 +14,12 @@ beforeAll(async () => {
   db = mongoose.connection.db;
 });
 afterAll(disconnectTestDb);
-beforeEach(clearTestDb);
+// These tests insert old-style data that current indexes would refuse, so no
+// index may be left over from other tests.
+beforeEach(async () => {
+  await clearTestDb();
+  await dropAllIndexes();
+});
 
 // Runs one migration twice. The second run must not change anything.
 async function runTwice(name) {
