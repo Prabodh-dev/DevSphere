@@ -5,11 +5,14 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "crypto";
-import s3Client from "./s3.js";
+import { getS3Client, isUploadConfigured } from "./s3.js";
 import { EXTENSIONS, detectMime } from "./fileType.js";
-import { badRequest } from "./httpError.js";
+import { HttpError, badRequest } from "./httpError.js";
 
 const DEFAULT_URL_TTL_SECONDS = 300;
+
+const notConfigured = () =>
+  new HttpError(503, "File uploads are not configured");
 
 const urlTtl = () => {
   const configured = Number(process.env.MEDIA_URL_TTL_SECONDS);
@@ -22,6 +25,8 @@ const urlTtl = () => {
 // Uploads a file to the private bucket and returns its object key. The key is
 // generated here; nothing supplied by the client ends up in it.
 export const uploadMedia = async ({ buffer, mimetype, prefix }) => {
+  if (!isUploadConfigured()) throw notConfigured();
+
   const detected = detectMime(buffer);
   if (!detected || detected !== mimetype) {
     throw badRequest("File content does not match its type");
@@ -29,33 +34,39 @@ export const uploadMedia = async ({ buffer, mimetype, prefix }) => {
 
   const key = `${prefix}/${randomUUID()}.${EXTENSIONS[detected]}`;
 
-  await s3Client.send(
-    new PutObjectCommand({
-      Bucket: process.env.AVATAR_BUCKET,
-      Key: key,
-      Body: buffer,
-      ContentType: detected,
-    })
-  );
+  try {
+    await getS3Client().send(
+      new PutObjectCommand({
+        Bucket: process.env.AVATAR_BUCKET,
+        Key: key,
+        Body: buffer,
+        ContentType: detected,
+      })
+    );
+  } catch (err) {
+    // No usable credentials is a configuration problem, not a server fault.
+    if (err?.name === "CredentialsProviderError") throw notConfigured();
+    throw err;
+  }
 
   return key;
 };
 
 // Short-lived download link for a stored object.
 export const getSignedMediaUrl = async (key) => {
-  if (!key) return "";
+  if (!key || !isUploadConfigured()) return "";
   const command = new GetObjectCommand({
     Bucket: process.env.AVATAR_BUCKET,
     Key: key,
   });
-  return getSignedUrl(s3Client, command, { expiresIn: urlTtl() });
+  return getSignedUrl(getS3Client(), command, { expiresIn: urlTtl() });
 };
 
 // Best effort: a failed delete is logged and never fails the request.
 export const deleteMedia = async (key) => {
-  if (!key) return false;
+  if (!key || !isUploadConfigured()) return false;
   try {
-    await s3Client.send(
+    await getS3Client().send(
       new DeleteObjectCommand({
         Bucket: process.env.AVATAR_BUCKET,
         Key: key,

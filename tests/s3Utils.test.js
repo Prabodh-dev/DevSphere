@@ -2,7 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { png, html } from "./helpers/files.js";
 
 const send = vi.hoisted(() => vi.fn());
-vi.mock("../utils/s3.js", () => ({ default: { send } }));
+vi.mock("../utils/s3.js", () => ({
+  getS3Client: () => ({ send }),
+  isUploadConfigured: () => Boolean(process.env.AVATAR_BUCKET),
+}));
 
 const { uploadMedia, getSignedMediaUrl, deleteMedia } =
   await import("../utils/s3Utils.js");

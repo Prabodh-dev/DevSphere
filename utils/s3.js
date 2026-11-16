@@ -1,20 +1,34 @@
 // utils/s3.js
 import { S3Client } from "@aws-sdk/client-s3";
-import dotenv from "dotenv";
-dotenv.config();
 
-// Explicit keys are optional; without them the SDK falls back to its default
-// credential sources (for example an instance or task role).
-const hasKeys = process.env.AWS_ACCESS_KEY && process.env.AWS_SECRET_KEY;
+const DEFAULT_REGION = "us-east-1";
 
-const s3Client = new S3Client({
-  region: process.env.AWS_REGION,
-  ...(hasKeys && {
-    credentials: {
-      accessKeyId: process.env.AWS_ACCESS_KEY,
-      secretAccessKey: process.env.AWS_SECRET_KEY,
-    },
-  }),
-});
+const clean = (value) => (typeof value === "string" ? value.trim() : "");
 
-export default s3Client;
+let client;
+
+// Uploads need a bucket; keys and region are optional (the SDK falls back to
+// its default credential sources, and the region to a default).
+export const isUploadConfigured = () =>
+  Boolean(clean(process.env.AVATAR_BUCKET));
+
+// Created on first use so that missing or blank upload settings never stop the
+// server from starting.
+export const getS3Client = () => {
+  if (!client) {
+    const accessKeyId = clean(process.env.AWS_ACCESS_KEY);
+    const secretAccessKey = clean(process.env.AWS_SECRET_KEY);
+
+    client = new S3Client({
+      region: clean(process.env.AWS_REGION) || DEFAULT_REGION,
+      ...(accessKeyId &&
+        secretAccessKey && { credentials: { accessKeyId, secretAccessKey } }),
+    });
+  }
+  return client;
+};
+
+// For tests that change the environment between uses.
+export const resetS3Client = () => {
+  client = undefined;
+};
