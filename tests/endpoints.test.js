@@ -125,24 +125,33 @@ describe("status", () => {
 });
 
 describe("notifications", () => {
-  it("creates and lists notifications", async () => {
-    const created = await as(alice)
-      .post("/api/notifications")
-      .send({ user: bob.id, type: "follow", fromUser: alice.id });
-    expect(created.status).toBe(201);
+  it("lists only the caller's notifications", async () => {
+    const { default: Notification } = await import("../models/Notification.js");
+    await Notification.create({
+      user: bob.id,
+      type: "follow",
+      fromUser: alice.id,
+    });
+    await Notification.create({
+      user: alice.id,
+      type: "status",
+      fromUser: bob.id,
+    });
 
     const list = await as(bob).get("/api/notifications");
+    expect(list.status).toBe(200);
     expect(list.body).toHaveLength(1);
+    expect(list.body[0].type).toBe("follow");
   });
 
-  it("validates the body", async () => {
-    const create = (body) => as(alice).post("/api/notifications").send(body);
-    expect((await create({ type: "follow" })).status).toBe(400);
-    expect((await create({ user: "x", type: "follow" })).status).toBe(400);
-    expect((await create({ user: bob.id, type: "other" })).status).toBe(400);
-    expect(
-      (await create({ user: bob.id, type: "follow", chatId: "x" })).status
-    ).toBe(400);
+  it("cannot be created through the API", async () => {
+    const res = await as(alice)
+      .post("/api/notifications")
+      .send({ user: bob.id, type: "follow", fromUser: alice.id });
+    expect(res.status).toBe(404);
+
+    const list = await as(bob).get("/api/notifications");
+    expect(list.body).toHaveLength(0);
   });
 });
 
