@@ -36,7 +36,7 @@ describe("auth flow (current behaviour)", () => {
       .post("/api/auth/register")
       .send({ ...credentials, username: "alice2" });
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(409);
     expect(res.body.message).toBe("Email already used");
   });
 
@@ -82,5 +82,62 @@ describe("auth flow (current behaviour)", () => {
     // Authenticated, but no profile has been created yet.
     expect(ok.status).toBe(404);
     expect(ok.body.message).toBe("Profile not found");
+  });
+});
+
+describe("registration and login validation", () => {
+  it("normalises the email so login works with any casing", async () => {
+    const reg = await request(app)
+      .post("/api/auth/register")
+      .send({ ...credentials, email: "  Alice@Example.TEST " });
+    expect(reg.status).toBe(201);
+    expect(reg.body.email).toBe("alice@example.test");
+
+    const login = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "ALICE@example.test", password: credentials.password });
+    expect(login.status).toBe(200);
+  });
+
+  it("treats emails that differ only by case as duplicates", async () => {
+    await request(app).post("/api/auth/register").send(credentials);
+    const res = await request(app)
+      .post("/api/auth/register")
+      .send({ ...credentials, username: "other", email: "ALICE@example.test" });
+    expect(res.status).toBe(409);
+  });
+
+  it("returns 409 for a taken username", async () => {
+    await request(app).post("/api/auth/register").send(credentials);
+    const res = await request(app)
+      .post("/api/auth/register")
+      .send({ ...credentials, email: "second@example.test" });
+    expect(res.status).toBe(409);
+    expect(res.body.message).toBe("Username already taken");
+  });
+
+  it.each([
+    ["missing password", { ...credentials, password: undefined }],
+    ["short password", { ...credentials, password: "short" }],
+    ["non-string password", { ...credentials, password: 12345678 }],
+    ["missing username", { ...credentials, username: undefined }],
+    ["invalid email", { ...credentials, email: "not-an-email" }],
+    ["non-string email", { ...credentials, email: { value: "x" } }],
+  ])("rejects registration with %s", async (_label, body) => {
+    const res = await request(app).post("/api/auth/register").send(body);
+    expect(res.status).toBe(400);
+    expect(Object.keys(res.body)).toEqual(["message"]);
+  });
+
+  it("rejects login bodies that are not plain strings", async () => {
+    await request(app).post("/api/auth/register").send(credentials);
+
+    const objectEmail = await request(app)
+      .post("/api/auth/login")
+      .send({ email: { value: "x" }, password: credentials.password });
+    expect(objectEmail.status).toBe(400);
+
+    const missing = await request(app).post("/api/auth/login").send({});
+    expect(missing.status).toBe(400);
   });
 });
