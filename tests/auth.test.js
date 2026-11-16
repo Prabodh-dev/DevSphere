@@ -8,7 +8,7 @@ import { bearer } from "./helpers/users.js";
 const credentials = {
   username: "alice",
   email: "alice@example.test",
-  password: "password-for-tests",
+  password: "password-for-tests-1",
 };
 
 beforeAll(connectTestDb);

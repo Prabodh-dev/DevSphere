@@ -1,18 +1,12 @@
+import mongoose from "mongoose";
 import Chat from "../models/Chat.js";
 import Message from "../models/Message.js";
 import User from "../models/User.js";
 import { loadChatForMember } from "../utils/chatAccess.js";
 import { badRequest, notFound } from "../utils/httpError.js";
-import {
-  requireObjectId,
-  requireOneOf,
-  requireString,
-} from "../utils/validate.js";
-
-const MESSAGE_TYPES = ["text", "media", "code"];
 
 export const accessChat = async (req, res) => {
-  const userId = requireObjectId(req.body?.userId, "userId");
+  const { userId } = req.valid.body;
 
   if (userId === req.user._id.toString()) {
     throw badRequest("You can't start a chat with yourself");
@@ -24,7 +18,7 @@ export const accessChat = async (req, res) => {
   // Only a direct chat with exactly these two members counts.
   let chat = await Chat.findOne({
     isGroupChat: false,
-    members: { $all: [req.user._id, userId], $size: 2 },
+    members: mongoose.trusted({ $all: [req.user._id, userId], $size: 2 }),
   });
 
   if (!chat) {
@@ -45,27 +39,18 @@ export const fetchChats = async (req, res) => {
 };
 
 export const sendMessage = async (req, res) => {
-  const body = req.body ?? {};
-  const type = requireOneOf(body.type ?? "text", MESSAGE_TYPES, "type");
-  const chat = await loadChatForMember(body.chatId, req.user._id);
+  const { chatId, type, text, code } = req.valid.body;
+  const chat = await loadChatForMember(chatId, req.user._id);
 
-  const messageData = {
-    chat: chat._id,
-    sender: req.user._id,
-    type,
-  };
+  const messageData = { chat: chat._id, sender: req.user._id, type };
 
   if (type === "code") {
-    const code = body.code ?? {};
     messageData.code = {
-      language:
-        typeof code.language === "string" && code.language
-          ? code.language
-          : "plaintext",
-      content: requireString(code.content, "code.content", { max: 100000 }),
+      language: code.language || "plaintext",
+      content: code.content,
     };
   } else {
-    messageData.text = requireString(body.text, "text", { max: 5000 });
+    messageData.text = text;
   }
 
   const message = await Message.create(messageData);
@@ -79,7 +64,7 @@ export const sendMessage = async (req, res) => {
 };
 
 export const getMessages = async (req, res) => {
-  const chat = await loadChatForMember(req.params.chatId, req.user._id);
+  const chat = await loadChatForMember(req.valid.params.chatId, req.user._id);
 
   const messages = await Message.find({ chat: chat._id })
     .populate("sender", "username")

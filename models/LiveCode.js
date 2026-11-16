@@ -1,5 +1,6 @@
 // models/LiveCode.js
 import mongoose from "mongoose";
+import "../config/mongoose.js";
 
 const liveCodeSchema = new mongoose.Schema(
   {

@@ -9,15 +9,21 @@ import {
 } from "../controllers/adminController.js";
 import auth from "../middlewares/authMiddleware.js";
 import requireAdmin from "../middlewares/requireAdmin.js";
+import validate from "../middlewares/validate.js";
+import { removeParams, userIdParams } from "../schemas/index.js";
 
 const router = express.Router();
 
 router.use(auth, requireAdmin);
 
 router.get("/users", getAllUsers);
-router.patch("/block/:id", blockUser);
-router.patch("/unblock/:id", unblockUser);
+router.patch("/block/:id", validate({ params: userIdParams }), blockUser);
+router.patch("/unblock/:id", validate({ params: userIdParams }), unblockUser);
 router.get("/reports", getReports);
-router.delete("/remove/:type/:id", deleteReportedItem);
+router.delete(
+  "/remove/:type/:id",
+  validate({ params: removeParams }),
+  deleteReportedItem
+);
 
 export default router;

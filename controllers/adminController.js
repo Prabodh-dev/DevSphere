@@ -3,10 +3,8 @@ import Report from "../models/Report.js";
 import Status from "../models/Status.js";
 import Message from "../models/Message.js";
 import { badRequest, notFound } from "../utils/httpError.js";
-import { requireObjectId, requireOneOf } from "../utils/validate.js";
 
-const setBlocked = async (id, isBlocked, actingUserId) => {
-  const userId = requireObjectId(id, "user id");
+const setBlocked = async (userId, isBlocked, actingUserId) => {
   if (isBlocked && userId === actingUserId.toString()) {
     throw badRequest("You can't block your own account");
   }
@@ -23,12 +21,12 @@ export const getAllUsers = async (req, res) => {
 };
 
 export const blockUser = async (req, res) => {
-  await setBlocked(req.params.id, true, req.user._id);
+  await setBlocked(req.valid.params.id, true, req.user._id);
   res.status(200).json({ message: "User blocked" });
 };
 
 export const unblockUser = async (req, res) => {
-  await setBlocked(req.params.id, false, req.user._id);
+  await setBlocked(req.valid.params.id, false, req.user._id);
   res.status(200).json({ message: "User unblocked" });
 };
 
@@ -38,9 +36,7 @@ export const getReports = async (req, res) => {
 };
 
 export const deleteReportedItem = async (req, res) => {
-  const { type, id } = req.params;
-  requireOneOf(type, ["status", "message"], "type");
-  requireObjectId(id, "id");
+  const { type, id } = req.valid.params;
 
   const Model = type === "status" ? Status : Message;
   const deleted = await Model.findByIdAndDelete(id);

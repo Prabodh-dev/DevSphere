@@ -1,5 +1,6 @@
 // models/Status.js
 import mongoose from "mongoose";
+import "../config/mongoose.js";
 
 const statusSchema = new mongoose.Schema(
   {

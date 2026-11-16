@@ -1,18 +1,12 @@
 // Group chat management.
+import mongoose from "mongoose";
 import Chat from "../models/Chat.js";
 import User from "../models/User.js";
 import { badRequest, forbidden, notFound } from "../utils/httpError.js";
-import {
-  isObjectId,
-  requireObjectId,
-  requireString,
-} from "../utils/validate.js";
 
 const sameId = (a, b) => String(a) === String(b);
 
 async function loadGroupAsAdmin(chatId, user, action) {
-  requireObjectId(chatId, "chatId");
-
   const chat = await Chat.findById(chatId);
   if (!chat) throw notFound("Chat not found");
   if (!chat.isGroupChat) throw badRequest("Not a group chat");
@@ -25,21 +19,18 @@ async function loadGroupAsAdmin(chatId, user, action) {
 
 // Create group chat
 export const createGroupChat = async (req, res) => {
-  const body = req.body ?? {};
-  const chatName = requireString(body.chatName, "chatName", { max: 100 });
-
-  if (!Array.isArray(body.members) || !body.members.every(isObjectId)) {
-    throw badRequest("members must be a list of user ids");
-  }
+  const { chatName, members } = req.valid.body;
 
   const creatorId = req.user._id.toString();
-  const memberIds = [...new Set(body.members)].filter((id) => id !== creatorId);
+  const memberIds = [...new Set(members)].filter((id) => id !== creatorId);
 
   if (memberIds.length < 2) {
     throw badRequest("Group must have name and at least 2 members");
   }
 
-  const existing = await User.countDocuments({ _id: { $in: memberIds } });
+  const existing = await User.countDocuments({
+    _id: mongoose.trusted({ $in: memberIds }),
+  });
   if (existing !== memberIds.length) {
     throw badRequest("One or more members do not exist");
   }
@@ -61,12 +52,8 @@ export const createGroupChat = async (req, res) => {
 
 // Add member (admin only)
 export const addToGroup = async (req, res) => {
-  const chat = await loadGroupAsAdmin(
-    req.body?.chatId,
-    req.user,
-    "add members"
-  );
-  const userId = requireObjectId(req.body?.userId, "userId");
+  const { chatId, userId } = req.valid.body;
+  const chat = await loadGroupAsAdmin(chatId, req.user, "add members");
 
   if (!(await User.exists({ _id: userId }))) throw notFound("User not found");
 
@@ -82,12 +69,8 @@ export const addToGroup = async (req, res) => {
 
 // Remove member (admin only)
 export const removeFromGroup = async (req, res) => {
-  const chat = await loadGroupAsAdmin(
-    req.body?.chatId,
-    req.user,
-    "remove members"
-  );
-  const userId = requireObjectId(req.body?.userId, "userId");
+  const { chatId, userId } = req.valid.body;
+  const chat = await loadGroupAsAdmin(chatId, req.user, "remove members");
 
   const isAdmin = chat.admins.some((admin) => sameId(admin, userId));
   if (isAdmin && chat.admins.length === 1) {
@@ -103,8 +86,9 @@ export const removeFromGroup = async (req, res) => {
 
 // Rename group (admin only)
 export const renameGroup = async (req, res) => {
-  const chat = await loadGroupAsAdmin(req.body?.chatId, req.user, "rename");
-  chat.chatName = requireString(req.body?.newName, "newName", { max: 100 });
+  const { chatId, newName } = req.valid.body;
+  const chat = await loadGroupAsAdmin(chatId, req.user, "rename");
+  chat.chatName = newName;
   await chat.save();
 
   res.status(200).json({ message: "Group renamed" });

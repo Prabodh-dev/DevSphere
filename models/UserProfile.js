@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import "../config/mongoose.js";
 
 const userProfileSchema = new mongoose.Schema(
   {

@@ -1,27 +1,20 @@
 // routes/reportRoutes.js
 import express from "express";
 import auth from "../middlewares/authMiddleware.js";
+import validate from "../middlewares/validate.js";
 import Report from "../models/Report.js";
-import {
-  requireObjectId,
-  requireOneOf,
-  requireString,
-} from "../utils/validate.js";
+import { reportBody } from "../schemas/index.js";
 
 const router = express.Router();
 
-router.post("/", auth, async (req, res) => {
-  const body = req.body ?? {};
+router.post("/", auth, validate({ body: reportBody }), async (req, res) => {
+  const { targetType, targetId, reason } = req.valid.body;
 
   const report = await Report.create({
     reportedBy: req.user._id,
-    targetType: requireOneOf(
-      body.targetType,
-      ["message", "status", "user"],
-      "targetType"
-    ),
-    targetId: requireObjectId(body.targetId, "targetId"),
-    reason: requireString(body.reason, "reason", { max: 1000 }),
+    targetType,
+    targetId,
+    reason,
   });
 
   res.status(201).json(report);
