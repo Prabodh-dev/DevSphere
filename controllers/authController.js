@@ -4,10 +4,13 @@ import generateToken from "../utils/generateToken.js";
 import {
   badRequest,
   conflict,
-  notFound,
+  forbidden,
   unauthorized,
 } from "../utils/httpError.js";
 import { requireString } from "../utils/validate.js";
+
+// Compared against when the email is unknown so both failures take similar time.
+const DUMMY_HASH = bcrypt.hashSync("placeholder-password", 10);
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -64,10 +67,11 @@ export const loginUser = async (req, res) => {
   // original casing, so accept either form.
   const rawEmail = body.email.trim();
   const user = await User.findOne({ email: { $in: [email, rawEmail] } });
-  if (!user) throw notFound("User not found");
 
-  const match = await bcrypt.compare(password, user.password);
-  if (!match) throw unauthorized("Invalid credentials");
+  const match = await bcrypt.compare(password, user?.password ?? DUMMY_HASH);
+  if (!user || !match) throw unauthorized("Invalid credentials");
+
+  if (user.isBlocked) throw forbidden("Account is blocked");
 
   res.status(200).json(publicUser(user));
 };
