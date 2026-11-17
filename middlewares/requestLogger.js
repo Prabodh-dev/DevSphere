@@ -13,13 +13,18 @@ const requestLogger = pinoHttp({
   // The fields below replace the default request and response objects.
   serializers: { req: () => undefined, res: () => undefined },
   customAttributeKeys: { responseTime: "durationMs" },
-  customProps: (req, res) => ({
-    requestId: req.id,
-    method: req.method,
-    route: routePattern(req),
-    status: res.statusCode,
-    ...(res.locals?.errorCode && { errorCode: res.locals.errorCode }),
-  }),
+  // pino-http asks for these twice: when the request starts (they become part
+  // of req.log, so every log line of the request has the id) and when it ends
+  // (they describe the outcome). Each field must appear in only one of them.
+  customProps: (req, res) =>
+    res.headersSent
+      ? {
+          method: req.method,
+          route: routePattern(req),
+          status: res.statusCode,
+          ...(res.locals?.errorCode && { errorCode: res.locals.errorCode }),
+        }
+      : { requestId: req.id },
   customLogLevel: (req, res, err) => {
     if (err || res.locals?.unexpectedError || res.statusCode >= 500) {
       return res.locals?.expectedServerError ? "warn" : "error";

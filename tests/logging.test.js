@@ -169,6 +169,25 @@ describe("request logging", () => {
     expect(text).not.toContain(alice.token);
   });
 
+  it("writes each field once per line", async () => {
+    await request(app).post("/api/v1/auth/login").send({});
+    const line = logs.raw.find((text) => text.includes('"route"'));
+    for (const key of [
+      "requestId",
+      "method",
+      "route",
+      "status",
+      "durationMs",
+    ]) {
+      const count = line.split(`"${key}":`).length - 1;
+      expect(count, key).toBe(1);
+    }
+    expect(JSON.parse(line)).toMatchObject({
+      route: "/api/v1/auth/login",
+      status: 400,
+    });
+  });
+
   it("logs successful requests at info and unknown routes as unmatched", async () => {
     await request(app).get("/api/v1/chat").set(bearer(alice.token));
     await request(app).get("/api/v1/nothing/here");
