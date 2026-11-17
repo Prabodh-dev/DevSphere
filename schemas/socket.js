@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "./openapi.js";
 import { objectId } from "./common.js";
 
 const MAX_MESSAGE_BYTES = 16 * 1024;

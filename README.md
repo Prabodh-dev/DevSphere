@@ -43,29 +43,30 @@ the process is up and connected to the database.
 
 Copy `.env.example` to `.env` and set:
 
-| Variable                   | Required    | Purpose                                                                                  |
-| -------------------------- | ----------- | ---------------------------------------------------------------------------------------- |
-| `MONGO_URI`                | yes         | MongoDB connection string                                                                |
-| `JWT_SECRET`               | yes         | Secret used to sign tokens, at least 32 characters                                       |
-| `PORT`                     | no          | HTTP port, defaults to `5000`                                                            |
-| `NODE_ENV`                 | no          | `development`, `test` or `production`                                                    |
-| `MONGO_AUTO_INDEX`         | no          | `true` or `false`; build missing indexes at startup, default `true` except in production |
-| `CORS_ORIGINS`             | no          | Comma separated browser origins allowed to call the API (none if empty)                  |
-| `TRUST_PROXY`              | no          | Number of reverse proxies in front of the app, default `0`                               |
-| `ACCESS_TOKEN_TTL`         | no          | Access token lifetime (`30s`, `15m`, `2h`, `1d`), default `15m`                          |
-| `REFRESH_TOKEN_TTL_DAYS`   | no          | Refresh token lifetime in days, default `30`                                             |
-| `COOKIE_SECURE`            | no          | `true` when served over HTTPS, so the refresh cookie is `Secure`                         |
-| `REFRESH_RATE_LIMIT_MAX`   | no          | Refresh requests per 15 minutes, default `60`                                            |
-| `REDIS_URL`                | no          | Redis URL for online presence; the app works without it                                  |
-| `REDIS_KEY_PREFIX`         | no          | Prefix for the Redis keys the app writes, default none                                   |
-| `RATE_LIMIT_MAX`           | no          | Requests per 15 minutes for `/api`, default `300`                                        |
-| `AUTH_RATE_LIMIT_MAX`      | no          | Login and register requests per 15 minutes, default `10`                                 |
-| `HIGHLIGHT_RATE_LIMIT_MAX` | no          | Snippet highlight requests per minute, default `30`                                      |
-| `AWS_ACCESS_KEY`           | for uploads | AWS access key id (optional if the environment provides AWS credentials)                 |
-| `AWS_SECRET_KEY`           | for uploads | AWS secret access key                                                                    |
-| `AWS_REGION`               | for uploads | AWS region of the bucket                                                                 |
-| `AVATAR_BUCKET`            | for uploads | S3 bucket for avatars and status media                                                   |
-| `MEDIA_URL_TTL_SECONDS`    | no          | Lifetime of signed media links, default `300`, at most `3600`                            |
+| Variable                   | Required    | Purpose                                                                                              |
+| -------------------------- | ----------- | ---------------------------------------------------------------------------------------------------- |
+| `MONGO_URI`                | yes         | MongoDB connection string                                                                            |
+| `JWT_SECRET`               | yes         | Secret used to sign tokens, at least 32 characters                                                   |
+| `PORT`                     | no          | HTTP port, defaults to `5000`                                                                        |
+| `NODE_ENV`                 | no          | `development`, `test` or `production`                                                                |
+| `MONGO_AUTO_INDEX`         | no          | `true` or `false`; build missing indexes at startup, default `true` except in production             |
+| `DOCS_ENABLED`             | no          | `true` or `false`; serve the API docs page and OpenAPI document, default `true` except in production |
+| `CORS_ORIGINS`             | no          | Comma separated browser origins allowed to call the API (none if empty)                              |
+| `TRUST_PROXY`              | no          | Number of reverse proxies in front of the app, default `0`                                           |
+| `ACCESS_TOKEN_TTL`         | no          | Access token lifetime (`30s`, `15m`, `2h`, `1d`), default `15m`                                      |
+| `REFRESH_TOKEN_TTL_DAYS`   | no          | Refresh token lifetime in days, default `30`                                                         |
+| `COOKIE_SECURE`            | no          | `true` when served over HTTPS, so the refresh cookie is `Secure`                                     |
+| `REFRESH_RATE_LIMIT_MAX`   | no          | Refresh requests per 15 minutes, default `60`                                                        |
+| `REDIS_URL`                | no          | Redis URL for online presence; the app works without it                                              |
+| `REDIS_KEY_PREFIX`         | no          | Prefix for the Redis keys the app writes, default none                                               |
+| `RATE_LIMIT_MAX`           | no          | Requests per 15 minutes for `/api`, default `300`                                                    |
+| `AUTH_RATE_LIMIT_MAX`      | no          | Login and register requests per 15 minutes, default `10`                                             |
+| `HIGHLIGHT_RATE_LIMIT_MAX` | no          | Snippet highlight requests per minute, default `30`                                                  |
+| `AWS_ACCESS_KEY`           | for uploads | AWS access key id (optional if the environment provides AWS credentials)                             |
+| `AWS_SECRET_KEY`           | for uploads | AWS secret access key                                                                                |
+| `AWS_REGION`               | for uploads | AWS region of the bucket                                                                             |
+| `AVATAR_BUCKET`            | for uploads | S3 bucket for avatars and status media                                                               |
+| `MEDIA_URL_TTL_SECONDS`    | no          | Lifetime of signed media links, default `300`, at most `3600`                                        |
 
 The server exits at startup if `MONGO_URI` or `JWT_SECRET` is missing, if
 `JWT_SECRET` is shorter than 32 characters, if a duration or count above is

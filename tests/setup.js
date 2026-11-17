@@ -8,6 +8,7 @@ const defaults = {
   PORT: "",
   NODE_ENV: "test",
   MONGO_AUTO_INDEX: "true",
+  DOCS_ENABLED: "",
   MONGO_URI: "",
   // Origin used by the session tests (refresh and logout check it).
   CORS_ORIGINS: "https://app.example.test",

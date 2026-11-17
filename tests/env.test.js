@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   getAccessTokenTtlSeconds,
   getCorsOrigins,
+  getDocsEnabled,
   getEnvProblems,
   getRefreshTtlDays,
   getTrustProxy,
@@ -105,5 +106,26 @@ describe("auth settings", () => {
         COOKIE_SECURE: "true",
       })
     ).toEqual([]);
+  });
+});
+
+describe("DOCS_ENABLED", () => {
+  it("defaults to on, except in production", () => {
+    expect(getDocsEnabled({})).toBe(true);
+    expect(getDocsEnabled({ NODE_ENV: "development" })).toBe(true);
+    expect(getDocsEnabled({ NODE_ENV: "production" })).toBe(false);
+    expect(
+      getDocsEnabled({ NODE_ENV: "production", DOCS_ENABLED: "true" })
+    ).toBe(true);
+    expect(getDocsEnabled({ NODE_ENV: "test", DOCS_ENABLED: "false" })).toBe(
+      false
+    );
+  });
+
+  it("is checked at startup", () => {
+    const base = { MONGO_URI: "m", JWT_SECRET: "x".repeat(32) };
+    expect(getEnvProblems({ ...base, DOCS_ENABLED: "maybe" })).toEqual([
+      "DOCS_ENABLED must be true or false",
+    ]);
   });
 });
