@@ -1,125 +1,97 @@
-// Group chat management.
 import mongoose from "mongoose";
 import Chat from "../models/Chat.js";
+import Message from "../models/Message.js";
 import User from "../models/User.js";
-import { badRequest, forbidden, notFound } from "../utils/httpError.js";
+import { loadChatForMember } from "../utils/chatAccess.js";
+import { badRequest, notFound } from "../utils/httpError.js";
 import { chatView } from "../utils/serializers.js";
-import { notifyUser } from "../utils/notify.js";
-import { chatRoom, liveCodeRoom, userRoom } from "../utils/rooms.js";
+import { paginate } from "../utils/pagination.js";
 
-const sameId = (a, b) => String(a) === String(b);
+export const accessChat = async (req, res) => {
+  const { userId } = req.valid.body;
 
-async function loadGroupAsAdmin(chatId, user, action) {
-  const chat = await Chat.findById(chatId);
-  if (!chat) throw notFound("Chat not found");
-  if (!chat.isGroupChat) throw badRequest("Not a group chat");
-
-  if (!chat.admins.some((admin) => sameId(admin, user._id))) {
-    throw forbidden(`Only admins can ${action}`);
-  }
-  return chat;
-}
-
-// Create group chat
-export const createGroupChat = async (req, res) => {
-  const { chatName, members } = req.valid.body;
-
-  const creatorId = req.user._id.toString();
-  const memberIds = [...new Set(members)].filter((id) => id !== creatorId);
-
-  if (memberIds.length < 2) {
-    throw badRequest("Group must have name and at least 2 members");
+  if (userId === req.user._id.toString()) {
+    throw badRequest("You can't start a chat with yourself");
   }
 
-  const existing = await User.countDocuments({
-    _id: mongoose.trusted({ $in: memberIds }),
-  });
-  if (existing !== memberIds.length) {
-    throw badRequest("One or more members do not exist");
-  }
+  const otherUser = await User.exists({ _id: userId });
+  if (!otherUser) throw notFound("User not found");
 
-  const group = await Chat.create({
-    isGroupChat: true,
-    chatName,
-    members: [req.user._id, ...memberIds],
-    admins: [req.user._id],
+  // Only a direct chat with exactly these two members counts.
+  let chat = await Chat.findOne({
+    isGroupChat: false,
+    members: mongoose.trusted({ $all: [req.user._id, userId], $size: 2 }),
   });
 
-  const fullGroup = await Chat.findById(group._id).populate(
-    "members",
-    "username avatarKey"
-  );
-
-  const io = req.app.get("io");
-  await Promise.all(
-    memberIds.map((userId) =>
-      notifyUser(io, {
-        userId,
-        type: "group",
-        content: `${req.user.username} added you to ${chatName}`,
-        fromUser: req.user._id,
-        chatId: group._id,
-      })
-    )
-  );
-
-  res.status(201).json(await chatView(fullGroup));
-};
-
-// Add member (admin only)
-export const addToGroup = async (req, res) => {
-  const { chatId, userId } = req.valid.body;
-  const chat = await loadGroupAsAdmin(chatId, req.user, "add members");
-
-  if (!(await User.exists({ _id: userId }))) throw notFound("User not found");
-
-  if (chat.members.some((member) => sameId(member, userId))) {
-    throw badRequest("User already in group");
+  if (!chat) {
+    chat = await Chat.create({
+      isGroupChat: false,
+      members: [req.user._id, userId],
+    });
   }
 
-  chat.members.push(userId);
-  await chat.save();
+  res.status(200).json(chat);
+};
 
-  await notifyUser(req.app.get("io"), {
-    userId,
-    type: "group",
-    content: `${req.user.username} added you to ${chat.chatName}`,
-    fromUser: req.user._id,
-    chatId: chat._id,
+export const fetchChats = async (req, res) => {
+  const { limit, cursor } = req.valid.query;
+
+  const { docs, nextCursor } = await paginate(Chat, {
+    filter: { members: req.user._id },
+    sortField: "updatedAt",
+    limit,
+    cursor,
+    build: (query) =>
+      query.populate("members", "username avatarKey").populate({
+        path: "latestMessage",
+        select: "sender type text createdAt",
+        populate: { path: "sender", select: "username" },
+      }),
   });
 
-  res.status(200).json({ message: "User added" });
+  res
+    .status(200)
+    .json({ items: await Promise.all(docs.map(chatView)), nextCursor });
 };
 
-// Remove member (admin only)
-export const removeFromGroup = async (req, res) => {
-  const { chatId, userId } = req.valid.body;
-  const chat = await loadGroupAsAdmin(chatId, req.user, "remove members");
+export const sendMessage = async (req, res) => {
+  const { chatId, type, text, code } = req.valid.body;
+  const chat = await loadChatForMember(chatId, req.user._id);
 
-  const isAdmin = chat.admins.some((admin) => sameId(admin, userId));
-  if (isAdmin && chat.admins.length === 1) {
-    throw badRequest("A group needs at least one admin");
+  const messageData = { chat: chat._id, sender: req.user._id, type };
+
+  if (type === "code") {
+    messageData.code = {
+      language: code.language || "plaintext",
+      content: code.content,
+    };
+  } else {
+    messageData.text = text;
   }
 
-  chat.members = chat.members.filter((id) => !sameId(id, userId));
-  chat.admins = chat.admins.filter((id) => !sameId(id, userId));
-  await chat.save();
+  const message = await Message.create(messageData);
+  // Also moves the chat to the top of the list (its updatedAt changes).
+  await Chat.findByIdAndUpdate(chat._id, { latestMessage: message._id });
 
-  // Stop delivering this chat to the removed member's open connections.
-  req.app
-    .get("io")
-    ?.in(userRoom(userId))
-    .socketsLeave([chatRoom(chat.id), liveCodeRoom(chat.id)]);
+  const fullMsg = await Message.findById(message._id)
+    .populate("sender", "username")
+    .populate("chat", "isGroupChat chatName");
 
-  res.status(200).json({ message: "User removed" });
+  res.status(201).json(fullMsg);
 };
 
-// Rename group (admin only)
-export const renameGroup = async (req, res) => {
-  const { chatId, newName } = req.valid.body;
-  const chat = await loadGroupAsAdmin(chatId, req.user, "rename");
-  chat.chatName = newName;
-  await chat.save();
+export const getMessages = async (req, res) => {
+  const chat = await loadChatForMember(req.valid.params.chatId, req.user._id);
+  const { limit, cursor } = req.valid.query;
 
-  res.status(200).json({ message: "Group renamed" });
+  // Newest first; ask for the cursor of a page to get the older messages.
+  const { docs, nextCursor } = await paginate(Message, {
+    filter: { chat: chat._id },
+    sortField: "createdAt",
+    limit,
+    cursor,
+    build: (query) => query.populate("sender", "username"),
+  });
+
+  res.status(200).json({ items: docs, nextCursor });
 };
