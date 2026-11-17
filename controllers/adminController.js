@@ -7,6 +7,7 @@ import { deleteMedia } from "../utils/s3Utils.js";
 import { userRoom } from "../utils/rooms.js";
 import { revokeAllForUser } from "../utils/sessions.js";
 import { refreshLatestMessage } from "../utils/chatPreview.js";
+import { paginate } from "../utils/pagination.js";
 
 const setBlocked = async (userId, isBlocked, actingUserId, io) => {
   if (isBlocked && userId === actingUserId.toString()) {
@@ -26,8 +27,17 @@ const setBlocked = async (userId, isBlocked, actingUserId, io) => {
 };
 
 export const getAllUsers = async (req, res) => {
-  const users = await User.find().select("-password");
-  res.status(200).json(users);
+  const { limit, cursor } = req.valid.query;
+
+  const { docs, nextCursor } = await paginate(User, {
+    sortField: "_id",
+    direction: -1,
+    limit,
+    cursor,
+    build: (query) => query.select("-password"),
+  });
+
+  res.status(200).json({ items: docs, nextCursor });
 };
 
 export const blockUser = async (req, res) => {
@@ -41,13 +51,17 @@ export const unblockUser = async (req, res) => {
 };
 
 export const getReports = async (req, res) => {
-  const { status } = req.valid.query;
-  const filter = status === "all" ? {} : { status };
+  const { status, limit, cursor } = req.valid.query;
 
-  const reports = await Report.find(filter)
-    .sort({ createdAt: -1 })
-    .populate("reportedBy", "username");
-  res.status(200).json(reports);
+  const { docs, nextCursor } = await paginate(Report, {
+    filter: status === "all" ? {} : { status },
+    sortField: "createdAt",
+    limit,
+    cursor,
+    build: (query) => query.populate("reportedBy", "username"),
+  });
+
+  res.status(200).json({ items: docs, nextCursor });
 };
 
 // Removes what was reported. A user is blocked rather than deleted.

@@ -5,6 +5,7 @@ import User from "../models/User.js";
 import { loadChatForMember } from "../utils/chatAccess.js";
 import { badRequest, notFound } from "../utils/httpError.js";
 import { chatView } from "../utils/serializers.js";
+import { paginate } from "../utils/pagination.js";
 
 export const accessChat = async (req, res) => {
   const { userId } = req.valid.body;
@@ -33,15 +34,24 @@ export const accessChat = async (req, res) => {
 };
 
 export const fetchChats = async (req, res) => {
-  const chats = await Chat.find({ members: req.user._id })
-    .populate("members", "username avatarKey")
-    .populate({
-      path: "latestMessage",
-      select: "sender type text createdAt",
-      populate: { path: "sender", select: "username" },
-    })
-    .sort({ updatedAt: -1 });
-  res.status(200).json(await Promise.all(chats.map(chatView)));
+  const { limit, cursor } = req.valid.query;
+
+  const { docs, nextCursor } = await paginate(Chat, {
+    filter: { members: req.user._id },
+    sortField: "updatedAt",
+    limit,
+    cursor,
+    build: (query) =>
+      query.populate("members", "username avatarKey").populate({
+        path: "latestMessage",
+        select: "sender type text createdAt",
+        populate: { path: "sender", select: "username" },
+      }),
+  });
+
+  res
+    .status(200)
+    .json({ items: await Promise.all(docs.map(chatView)), nextCursor });
 };
 
 export const sendMessage = async (req, res) => {
@@ -72,10 +82,16 @@ export const sendMessage = async (req, res) => {
 
 export const getMessages = async (req, res) => {
   const chat = await loadChatForMember(req.valid.params.chatId, req.user._id);
+  const { limit, cursor } = req.valid.query;
 
-  const messages = await Message.find({ chat: chat._id })
-    .populate("sender", "username")
-    .sort({ createdAt: 1 });
+  // Newest first; ask for the cursor of a page to get the older messages.
+  const { docs, nextCursor } = await paginate(Message, {
+    filter: { chat: chat._id },
+    sortField: "createdAt",
+    limit,
+    cursor,
+    build: (query) => query.populate("sender", "username"),
+  });
 
-  res.status(200).json(messages);
+  res.status(200).json({ items: docs, nextCursor });
 };

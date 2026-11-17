@@ -192,13 +192,13 @@ describe("listing reports", () => {
     await admins.remove("message", message.id);
 
     const open = await admins.get("/api/v1/admin/reports");
-    expect(open.body.map((r) => r.targetType)).toEqual(["status"]);
+    expect(open.body.items.map((r) => r.targetType)).toEqual(["status"]);
 
     const resolved = await admins.get("/api/v1/admin/reports?status=resolved");
-    expect(resolved.body.map((r) => r.targetType)).toEqual(["message"]);
+    expect(resolved.body.items.map((r) => r.targetType)).toEqual(["message"]);
 
     const all = await admins.get("/api/v1/admin/reports?status=all");
-    expect(all.body).toHaveLength(2);
+    expect(all.body.items).toHaveLength(2);
 
     expect(
       (await admins.get("/api/v1/admin/reports?status=weird")).status

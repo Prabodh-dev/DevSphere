@@ -187,11 +187,11 @@ describe("single source of truth", () => {
     const found = await request(app)
       .get("/api/v1/users?tag=deno")
       .set(bearer(alice.token));
-    expect(found.body.map((u) => u.username)).toEqual([alice.username]);
+    expect(found.body.items.map((u) => u.username)).toEqual([alice.username]);
     const old = await request(app)
       .get("/api/v1/users?tag=node")
       .set(bearer(alice.token));
-    expect(old.body).toEqual([]);
+    expect(old.body.items).toEqual([]);
   });
 
   it("updates only the fields that were sent", async () => {

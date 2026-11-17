@@ -10,6 +10,7 @@ import validate from "../middlewares/validate.js";
 import {
   accessChatBody,
   chatIdParams,
+  pageQuery,
   sendMessageBody,
 } from "../schemas/index.js";
 
@@ -21,7 +22,7 @@ router.post(
   validate({ body: accessChatBody }),
   accessChat
 );
-router.get("/", authMiddleware, fetchChats);
+router.get("/", authMiddleware, validate({ query: pageQuery }), fetchChats);
 router.post(
   "/message",
   authMiddleware,
@@ -31,7 +32,7 @@ router.post(
 router.get(
   "/message/:chatId",
   authMiddleware,
-  validate({ params: chatIdParams }),
+  validate({ params: chatIdParams, query: pageQuery }),
   getMessages
 );
 

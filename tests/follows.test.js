@@ -136,11 +136,11 @@ describe("followers and following lists", () => {
     const followers = await as(carol).get(
       `/api/v1/users/${carol.id}/followers`
     );
-    expect(followers.body.map((u) => u.username)).toEqual([
+    expect(followers.body.items.map((u) => u.username)).toEqual([
       bob.username,
       alice.username,
     ]);
-    expect(Object.keys(followers.body[0]).sort()).toEqual([
+    expect(Object.keys(followers.body.items[0]).sort()).toEqual([
       "_id",
       "avatar",
       "username",
@@ -149,10 +149,12 @@ describe("followers and following lists", () => {
     const following = await as(alice).get(
       `/api/v1/users/${alice.id}/following`
     );
-    expect(following.body.map((u) => u.username)).toEqual([carol.username]);
+    expect(following.body.items.map((u) => u.username)).toEqual([
+      carol.username,
+    ]);
   });
 
-  it("support limit and skip", async () => {
+  it("page with a cursor", async () => {
     await as(alice).post(`/api/v1/users/${carol.id}/follow`);
     await new Promise((r) => setTimeout(r, 20));
     await as(bob).post(`/api/v1/users/${carol.id}/follow`);
@@ -160,18 +162,17 @@ describe("followers and following lists", () => {
     const first = await as(carol).get(
       `/api/v1/users/${carol.id}/followers?limit=1`
     );
-    expect(first.body.map((u) => u.username)).toEqual([bob.username]);
+    expect(first.body.items.map((u) => u.username)).toEqual([bob.username]);
+    expect(first.body.nextCursor).toEqual(expect.any(String));
+
     const next = await as(carol).get(
-      `/api/v1/users/${carol.id}/followers?limit=1&skip=1`
+      `/api/v1/users/${carol.id}/followers?limit=1&cursor=${first.body.nextCursor}`
     );
-    expect(next.body.map((u) => u.username)).toEqual([alice.username]);
+    expect(next.body.items.map((u) => u.username)).toEqual([alice.username]);
+    expect(next.body.nextCursor).toBeNull();
 
     expect(
       (await as(carol).get(`/api/v1/users/${carol.id}/followers?limit=1000`))
-        .status
-    ).toBe(400);
-    expect(
-      (await as(carol).get(`/api/v1/users/${carol.id}/followers?skip=-1`))
         .status
     ).toBe(400);
   });
@@ -181,7 +182,7 @@ describe("followers and following lists", () => {
     await User.deleteOne({ _id: alice.id });
     const res = await as(bob).get(`/api/v1/users/${carol.id}/followers`);
     expect(res.status).toBe(200);
-    expect(res.body).toEqual([]);
+    expect(res.body.items).toEqual([]);
   });
 
   it("feed statuses of followed users", async () => {
@@ -194,7 +195,7 @@ describe("followers and following lists", () => {
       .send({ type: "text", content: "from carol" });
 
     const feed = await as(alice).get("/api/v1/status/feed");
-    expect(feed.body.statuses.map((s) => s.content)).toEqual(["from bob"]);
+    expect(feed.body.items.map((s) => s.content)).toEqual(["from bob"]);
   });
 });
 

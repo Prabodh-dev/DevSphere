@@ -168,9 +168,9 @@ describe("status media", () => {
     const feed = await request(app)
       .get("/api/v1/status/feed")
       .set(bearer(alice.token));
-    expect(feed.body.count).toBe(1);
-    expect(feed.body.statuses[0].content).toContain("signed.example.test");
-    expect(feed.body.statuses[0].user).toEqual({
+    expect(feed.body.items).toHaveLength(1);
+    expect(feed.body.items[0].content).toContain("signed.example.test");
+    expect(feed.body.items[0].user).toEqual({
       _id: alice.id,
       username: alice.username,
       avatar: "",
@@ -224,7 +224,7 @@ describe("status media", () => {
     const feed = await request(app)
       .get("/api/v1/status/feed")
       .set(bearer(alice.token));
-    expect(feed.body.count).toBe(0);
+    expect(feed.body.items).toHaveLength(0);
   });
 
   it("still shows older statuses that only have an expiry date", async () => {
@@ -237,7 +237,7 @@ describe("status media", () => {
     const feed = await request(app)
       .get("/api/v1/status/feed")
       .set(bearer(alice.token));
-    expect(feed.body.count).toBe(1);
+    expect(feed.body.items).toHaveLength(1);
   });
 });
 

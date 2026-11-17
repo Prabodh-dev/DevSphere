@@ -76,7 +76,7 @@ describe("admin routes", () => {
   it("lets an admin list users, block and unblock", async () => {
     const list = await as(admin).get("/api/v1/admin/users");
     expect(list.status).toBe(200);
-    expect(list.body.every((u) => u.password === undefined)).toBe(true);
+    expect(list.body.items.every((u) => u.password === undefined)).toBe(true);
 
     const block = await as(admin).patch(`/api/v1/admin/block/${member.id}`);
     expect(block.status).toBe(200);
@@ -101,7 +101,7 @@ describe("admin routes", () => {
     });
     const res = await as(admin).get("/api/v1/admin/reports");
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(1);
+    expect(res.body.items).toHaveLength(1);
   });
 });
 

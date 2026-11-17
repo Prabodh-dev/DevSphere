@@ -3,6 +3,7 @@ import Follow from "../models/Follow.js";
 import { badRequest, notFound } from "../utils/httpError.js";
 import { publicUserView } from "../utils/serializers.js";
 import { notifyUser } from "../utils/notify.js";
+import { paginate } from "../utils/pagination.js";
 
 // Follow a user. The unique index on (follower, following) decides races.
 export const followUser = async (req, res) => {
@@ -45,39 +46,50 @@ export const unfollowUser = async (req, res) => {
 };
 
 // Public view of the users on the other side of the follow records.
-const listUsers = async (follows, field) => {
-  const users = follows.map((follow) => follow[field]).filter(Boolean);
-  return Promise.all(users.map(publicUserView));
-};
+const listUsers = (follows, field) =>
+  Promise.all(
+    follows
+      .map((follow) => follow[field])
+      .filter(Boolean)
+      .map(publicUserView)
+  );
 
 // Get followers of a user, newest first
 export const getFollowers = async (req, res) => {
   const { id } = req.valid.params;
-  const { limit, skip } = req.valid.query;
+  const { limit, cursor } = req.valid.query;
   if (!(await User.exists({ _id: id }))) throw notFound("User not found");
 
-  const follows = await Follow.find({ following: id })
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limit)
-    .populate("follower", "username avatarKey");
+  const { docs, nextCursor } = await paginate(Follow, {
+    filter: { following: id },
+    sortField: "createdAt",
+    limit,
+    cursor,
+    build: (query) => query.populate("follower", "username avatarKey"),
+  });
 
-  res.status(200).json(await listUsers(follows, "follower"));
+  res
+    .status(200)
+    .json({ items: await listUsers(docs, "follower"), nextCursor });
 };
 
 // Get the users someone follows, newest first
 export const getFollowing = async (req, res) => {
   const { id } = req.valid.params;
-  const { limit, skip } = req.valid.query;
+  const { limit, cursor } = req.valid.query;
   if (!(await User.exists({ _id: id }))) throw notFound("User not found");
 
-  const follows = await Follow.find({ follower: id })
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limit)
-    .populate("following", "username avatarKey");
+  const { docs, nextCursor } = await paginate(Follow, {
+    filter: { follower: id },
+    sortField: "createdAt",
+    limit,
+    cursor,
+    build: (query) => query.populate("following", "username avatarKey"),
+  });
 
-  res.status(200).json(await listUsers(follows, "following"));
+  res
+    .status(200)
+    .json({ items: await listUsers(docs, "following"), nextCursor });
 };
 
 // Update user's tags
@@ -91,18 +103,24 @@ export const updateTags = async (req, res) => {
   res.status(200).json({ message: "Tags updated", tags: user.tags });
 };
 
-// Search users by tag
+// Search users by tag, in the order they signed up
 export const searchUsersByTag = async (req, res) => {
-  const users = await User.find({ tags: req.valid.query.tag }).select(
-    "username avatarKey tags"
-  );
+  const { tag, limit, cursor } = req.valid.query;
 
-  res.status(200).json(
-    await Promise.all(
-      users.map(async (user) => ({
-        ...(await publicUserView(user)),
-        tags: user.tags,
-      }))
-    )
+  const { docs, nextCursor } = await paginate(User, {
+    filter: { tags: tag },
+    sortField: "_id",
+    direction: 1,
+    limit,
+    cursor,
+    build: (query) => query.select("username avatarKey tags"),
+  });
+
+  const items = await Promise.all(
+    docs.map(async (user) => ({
+      ...(await publicUserView(user)),
+      tags: user.tags,
+    }))
   );
+  res.status(200).json({ items, nextCursor });
 };

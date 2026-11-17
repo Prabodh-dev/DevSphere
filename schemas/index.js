@@ -55,12 +55,13 @@ export const profileParams = z.object({ userId: objectId });
 
 // ---- users ----
 export const userIdParams = z.object({ id: objectId });
+// Cursor pagination: limit (default 30, at most 100) and an opaque cursor.
 export const pageQuery = z.object({
-  limit: z.coerce.number().int().min(1).max(200).default(100),
-  skip: z.coerce.number().int().min(0).default(0),
+  limit: z.coerce.number().int().min(1).max(100).default(30),
+  cursor: z.string().min(1).max(500).optional(),
 });
 export const tagsBody = z.object({ tags: tagList });
-export const tagQuery = z.object({ tag: text(30) });
+export const tagQuery = pageQuery.extend({ tag: text(30) });
 
 // ---- chat ----
 export const accessChatBody = z.object({ userId: objectId });
@@ -136,6 +137,6 @@ export const highlightBody = z.object({
   language: text(50).optional(),
 });
 
-export const reportsQuery = z.object({
+export const reportsQuery = pageQuery.extend({
   status: z.enum(["open", "resolved", "all"]).default("open"),
 });

@@ -40,7 +40,7 @@ describe("latest message", () => {
 
   it("shows a short preview in the chat list", async () => {
     await send(alice, withBob, { text: "hello there" });
-    const chats = (await list(bob)).body;
+    const chats = (await list(bob)).body.items;
     const chat = chats.find((c) => c._id === withBob.id);
 
     expect(Object.keys(chat.latestMessage).sort()).toEqual([
@@ -60,18 +60,20 @@ describe("latest message", () => {
       type: "code",
       code: { language: "js", content: "const secret = 1;" },
     });
-    let chat = (await list(alice)).body.find((c) => c._id === withBob.id);
+    let chat = (await list(alice)).body.items.find((c) => c._id === withBob.id);
     expect(chat.latestMessage.preview).toBe("[code]");
     expect(JSON.stringify(chat.latestMessage)).not.toContain("secret");
 
     await send(bob, withBob, { text: "x".repeat(300) });
-    chat = (await list(alice)).body.find((c) => c._id === withBob.id);
+    chat = (await list(alice)).body.items.find((c) => c._id === withBob.id);
     expect(chat.latestMessage.preview).toHaveLength(101);
     expect(chat.latestMessage.preview.endsWith("…")).toBe(true);
   });
 
   it("is null for a chat without messages", async () => {
-    const chat = (await list(alice)).body.find((c) => c._id === withBob.id);
+    const chat = (await list(alice)).body.items.find(
+      (c) => c._id === withBob.id
+    );
     expect(chat.latestMessage).toBeNull();
   });
 
@@ -79,14 +81,14 @@ describe("latest message", () => {
     await send(alice, withBob, { text: "first" });
     await tick();
     await send(alice, withCarol, { text: "second" });
-    expect((await list(alice)).body.map((c) => c._id)).toEqual([
+    expect((await list(alice)).body.items.map((c) => c._id)).toEqual([
       withCarol.id,
       withBob.id,
     ]);
 
     await tick();
     await send(bob, withBob, { text: "third" });
-    expect((await list(alice)).body.map((c) => c._id)).toEqual([
+    expect((await list(alice)).body.items.map((c) => c._id)).toEqual([
       withBob.id,
       withCarol.id,
     ]);
@@ -104,7 +106,9 @@ describe("latest message", () => {
       .set(bearer(admin.token));
     expect(res.status).toBe(200);
 
-    const chat = (await list(alice)).body.find((c) => c._id === withBob.id);
+    const chat = (await list(alice)).body.items.find(
+      (c) => c._id === withBob.id
+    );
     expect(chat.latestMessage.preview).toBe("keep me");
     // Cleaning up does not count as chat activity.
     expect((await Chat.findById(withBob.id)).updatedAt).toEqual(before);
@@ -113,7 +117,9 @@ describe("latest message", () => {
     await request(app)
       .delete(`/api/v1/admin/remove/message/${only.id}`)
       .set(bearer(admin.token));
-    const empty = (await list(alice)).body.find((c) => c._id === withBob.id);
+    const empty = (await list(alice)).body.items.find(
+      (c) => c._id === withBob.id
+    );
     expect(empty.latestMessage).toBeNull();
   });
 });
