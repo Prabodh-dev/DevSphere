@@ -5,6 +5,7 @@ import { setupSocketIO } from "./socket.js";
 import { closeRedis } from "./config/redis.js";
 import { config, getEnvProblems } from "./config/index.js";
 import { logger } from "./utils/logger.js";
+import { createShutdown, installProcessGuards } from "./utils/shutdown.js";
 import { cleanupExpiredStatusMedia } from "./utils/mediaCleanup.js";
 
 const problems = getEnvProblems();
@@ -16,29 +17,19 @@ if (problems.length > 0) {
 const PORT = config.port;
 const server = http.createServer(app);
 let io;
-let shuttingDown = false;
 
-async function shutdown(signal) {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  logger.info({ signal }, "shutting down");
-
-  // Do not hang forever if a connection refuses to close.
-  setTimeout(() => process.exit(1), 10000).unref();
-
-  try {
-    await new Promise((resolve) => {
-      io.close(resolve);
-      server.closeIdleConnections?.();
-    });
+const shutdown = createShutdown({
+  close: async () => {
+    if (io) {
+      await new Promise((resolve) => {
+        io.close(resolve);
+        server.closeIdleConnections?.();
+      });
+    }
     await closeRedis();
     await mongoose.connection.close();
-    process.exit(0);
-  } catch (err) {
-    logger.error({ err }, "Error during shutdown");
-    process.exit(1);
-  }
-}
+  },
+});
 
 async function start() {
   await mongoose.connect(config.mongoUri, {
@@ -67,6 +58,7 @@ async function start() {
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
+installProcessGuards({ shutdown });
 
 start().catch((err) => {
   logger.fatal({ err }, "Failed to start server");
