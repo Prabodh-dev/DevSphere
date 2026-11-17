@@ -1,14 +1,7 @@
 import Notification from "../models/Notification.js";
-import { publicUserView } from "./serializers.js";
-import { userRoom } from "./rooms.js";
-
-export const notificationView = async (notification) => {
-  const plain = notification.toObject();
-  if (plain.fromUser && plain.fromUser.username !== undefined) {
-    plain.fromUser = await publicUserView(plain.fromUser);
-  }
-  return plain;
-};
+import { notificationView } from "../utils/serializers.js";
+import { paginate } from "../utils/pagination.js";
+import { userRoom } from "../utils/rooms.js";
 
 // Creates a notification and pushes it to the recipient's open sockets.
 // Failures are logged: a missed notification must not fail the request.
@@ -35,4 +28,15 @@ export async function notifyUser(
   } catch (err) {
     console.warn("Could not create notification:", err.message);
   }
+}
+
+// A user's notifications, newest first.
+export function listNotifications(userId, { limit, cursor }) {
+  return paginate(Notification, {
+    filter: { user: userId },
+    sortField: "createdAt",
+    limit,
+    cursor,
+    build: (query) => query.populate("fromUser", "username avatarKey"),
+  });
 }

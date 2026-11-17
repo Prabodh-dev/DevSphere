@@ -1,19 +1,11 @@
-// controllers/notificationController.js
-import Notification from "../models/Notification.js";
-import { notificationView } from "../utils/notify.js";
-import { paginate } from "../utils/pagination.js";
+import { listNotifications } from "../services/notificationService.js";
+import { notificationView } from "../utils/serializers.js";
 
 export const getNotifications = async (req, res) => {
-  const { limit, cursor } = req.valid.query;
-
-  const { docs, nextCursor } = await paginate(Notification, {
-    filter: { user: req.user._id },
-    sortField: "createdAt",
-    limit,
-    cursor,
-    build: (query) => query.populate("fromUser", "username avatarKey"),
-  });
-
+  const { docs, nextCursor } = await listNotifications(
+    req.user._id,
+    req.valid.query
+  );
   res
     .status(200)
     .json({ items: await Promise.all(docs.map(notificationView)), nextCursor });

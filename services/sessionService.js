@@ -1,20 +1,16 @@
 import mongoose from "mongoose";
 import Session from "../models/Session.js";
 import User from "../models/User.js";
-import { accountBlocked, unauthorized } from "./httpError.js";
+import { accountBlocked, unauthorized } from "../utils/httpError.js";
 import { config } from "../config/index.js";
-import { newRefreshToken, hashToken } from "./tokens.js";
-import { sessionRoom } from "./rooms.js";
+import { newRefreshToken, hashToken } from "../utils/tokens.js";
+import { sessionRoom } from "../utils/rooms.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const clientInfo = (req) => ({
-  userAgent: String(req.get("user-agent") ?? "").slice(0, 200),
-  ip: String(req.ip ?? ""),
-});
-
 // Starts a new login (family) and returns its first refresh token.
-export async function startSession(userId, req) {
+// client is { userAgent, ip } of the request that signs in.
+export async function startSession(userId, client) {
   const familyId = new mongoose.Types.ObjectId().toString();
   const now = new Date();
   const refreshToken = newRefreshToken();
@@ -27,7 +23,7 @@ export async function startSession(userId, req) {
     expiresAt: new Date(
       now.getTime() + config.auth.refreshTokenTtlDays * DAY_MS
     ),
-    ...clientInfo(req),
+    ...client,
   });
 
   return { familyId, refreshToken };
@@ -102,7 +98,7 @@ async function handleUsedToken(session, io) {
 
 // Exchanges a refresh token for a new one in the same login. Returns the new
 // refresh token, the login id and the user.
-export async function rotateSession(rawToken, req, io) {
+export async function rotateSession(rawToken, client, io) {
   const tokenHash = hashToken(rawToken);
   const session = await Session.findOne({ tokenHash });
   if (!session) throw invalid();
@@ -144,7 +140,7 @@ export async function rotateSession(rawToken, req, io) {
     expiresAt: new Date(
       now.getTime() + config.auth.refreshTokenTtlDays * DAY_MS
     ),
-    ...clientInfo(req),
+    ...client,
   });
 
   return {

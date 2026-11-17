@@ -13,7 +13,7 @@ import {
 } from "./utils/rooms.js";
 import { verifyAccessToken } from "./utils/tokens.js";
 import { errorBody } from "./utils/apiError.js";
-import { isSessionActive } from "./utils/sessions.js";
+import { isSessionActive } from "./services/sessionService.js";
 import {
   chatIdPayload,
   codeChangePayload,
