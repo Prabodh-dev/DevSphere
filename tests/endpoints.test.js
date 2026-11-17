@@ -50,9 +50,11 @@ describe("users", () => {
     expect(follow.status).toBe(200);
 
     const followers = await as(alice).get(`/api/v1/users/${bob.id}/followers`);
-    expect(followers.body.map((u) => u.username)).toEqual([alice.username]);
+    expect(followers.body.items.map((u) => u.username)).toEqual([
+      alice.username,
+    ]);
     // Only public fields are returned.
-    expect(Object.keys(followers.body[0]).sort()).toEqual([
+    expect(Object.keys(followers.body.items[0]).sort()).toEqual([
       "_id",
       "avatar",
       "username",
@@ -60,7 +62,7 @@ describe("users", () => {
     const following = await as(alice).get(
       `/api/v1/users/${alice.id}/following`
     );
-    expect(following.body.map((u) => u.username)).toEqual([bob.username]);
+    expect(following.body.items.map((u) => u.username)).toEqual([bob.username]);
 
     const again = await as(alice).post(`/api/v1/users/${bob.id}/follow`);
     expect(again.status).toBe(400);
@@ -95,8 +97,8 @@ describe("users", () => {
     expect(res.status).toBe(200);
 
     const found = await as(bob).get("/api/v1/users?tag=go");
-    expect(found.body.map((u) => u.username)).toEqual([alice.username]);
-    expect(Object.keys(found.body[0]).sort()).toEqual([
+    expect(found.body.items.map((u) => u.username)).toEqual([alice.username]);
+    expect(Object.keys(found.body.items[0]).sort()).toEqual([
       "_id",
       "avatar",
       "tags",
@@ -121,8 +123,8 @@ describe("status", () => {
     expect(res.status).toBe(201);
 
     const feed = await as(alice).get("/api/v1/status/feed");
-    expect(feed.body.count).toBe(1);
-    expect(feed.body.statuses[0].content).toBe("hello");
+    expect(feed.body.items).toHaveLength(1);
+    expect(feed.body.items[0].content).toBe("hello");
   });
 
   it("uploads image statuses", async () => {
@@ -167,8 +169,8 @@ describe("notifications", () => {
 
     const list = await as(bob).get("/api/v1/notifications");
     expect(list.status).toBe(200);
-    expect(list.body).toHaveLength(1);
-    expect(list.body[0].type).toBe("follow");
+    expect(list.body.items).toHaveLength(1);
+    expect(list.body.items[0].type).toBe("follow");
   });
 
   it("cannot be created through the API", async () => {
@@ -178,7 +180,7 @@ describe("notifications", () => {
     expect(res.status).toBe(404);
 
     const list = await as(bob).get("/api/v1/notifications");
-    expect(list.body).toHaveLength(0);
+    expect(list.body.items).toHaveLength(0);
   });
 });
 

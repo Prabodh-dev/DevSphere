@@ -47,8 +47,8 @@ describe("chat responses", () => {
     const res = await as(alice).get("/api/v1/chat");
 
     expect(res.status).toBe(200);
-    expect(res.body[0].members).toHaveLength(2);
-    for (const member of res.body[0].members) {
+    expect(res.body.items[0].members).toHaveLength(2);
+    for (const member of res.body.items[0].members) {
       expect(Object.keys(member).sort()).toEqual(publicKeys);
     }
     expect(JSON.stringify(res.body)).not.toContain("@example.test");
@@ -105,9 +105,11 @@ describe("server side notifications", () => {
     await as(alice).post(`/api/v1/users/${bob.id}/follow`);
     const res = await as(bob).get("/api/v1/notifications");
 
-    expect(res.body).toHaveLength(1);
-    expect(Object.keys(res.body[0].fromUser).sort()).toEqual(publicKeys);
-    expect((await as(alice).get("/api/v1/notifications")).body).toHaveLength(0);
+    expect(res.body.items).toHaveLength(1);
+    expect(Object.keys(res.body.items[0].fromUser).sort()).toEqual(publicKeys);
+    expect(
+      (await as(alice).get("/api/v1/notifications")).body.items
+    ).toHaveLength(0);
   });
 
   it("are created for members added to a group", async () => {

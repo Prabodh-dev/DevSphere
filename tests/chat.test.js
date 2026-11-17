@@ -98,7 +98,7 @@ describe("messages", () => {
 
     const res = await list(bob, chat.id);
     expect(res.status).toBe(200);
-    expect(res.body.map((m) => m.text)).toEqual(["hello"]);
+    expect(res.body.items.map((m) => m.text)).toEqual(["hello"]);
   });
 
   it("stores code messages", async () => {
