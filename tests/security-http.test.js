@@ -57,6 +57,7 @@ describe("request size", () => {
     expect(res.body.error).toEqual({
       code: "PAYLOAD_TOO_LARGE",
       message: "Request body too large",
+      requestId: res.headers["x-request-id"],
     });
   });
 

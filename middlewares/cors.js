@@ -3,9 +3,14 @@ import { config } from "../config/index.js";
 
 const METHODS = ["GET", "POST", "PATCH", "DELETE", "OPTIONS"];
 // The request headers the API reads.
-const ALLOWED_HEADERS = ["Content-Type", "Authorization"];
-// Response headers a browser client may read (rate limiting information).
-const EXPOSED_HEADERS = ["RateLimit", "RateLimit-Policy", "Retry-After"];
+const ALLOWED_HEADERS = ["Content-Type", "Authorization", "X-Request-Id"];
+// Response headers a browser client may read: rate limiting and the request id.
+const EXPOSED_HEADERS = [
+  "RateLimit",
+  "RateLimit-Policy",
+  "Retry-After",
+  "X-Request-Id",
+];
 const PREFLIGHT_MAX_AGE_SECONDS = 600;
 
 // Only origins in CORS_ORIGINS get CORS headers, and credentials are only

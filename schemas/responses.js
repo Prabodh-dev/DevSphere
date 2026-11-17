@@ -18,6 +18,10 @@ export const ErrorResponse = z
       code: z.string().openapi({ example: "VALIDATION_ERROR" }),
       message: z.string().openapi({ example: "Request validation failed" }),
       details: z.unknown().optional(),
+      requestId: z.string().openapi({
+        example: "7c1f6b5e-0d54-4b61-9a8e-5f1a3c2d9b10",
+        description: "Same value as the X-Request-Id response header",
+      }),
     }),
   })
   .openapi("ErrorResponse", {

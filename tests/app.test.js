@@ -27,7 +27,11 @@ describe("app basics", () => {
     expect(res.status).toBe(404);
     expect(res.headers["content-type"]).toMatch(/json/);
     expect(res.body).toEqual({
-      error: { code: "NOT_FOUND", message: "Route not found" },
+      error: {
+        code: "NOT_FOUND",
+        message: "Route not found",
+        requestId: res.headers["x-request-id"],
+      },
     });
   });
 
@@ -38,7 +42,11 @@ describe("app basics", () => {
       .send('{"email": ');
     expect(res.status).toBe(400);
     expect(res.body).toEqual({
-      error: { code: "MALFORMED_REQUEST", message: "Malformed request body" },
+      error: {
+        code: "MALFORMED_REQUEST",
+        message: "Malformed request body",
+        requestId: res.headers["x-request-id"],
+      },
     });
   });
 });

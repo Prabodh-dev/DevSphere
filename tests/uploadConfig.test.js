@@ -73,6 +73,7 @@ describe("uploads without configuration", () => {
         error: {
           code: "UPLOADS_NOT_CONFIGURED",
           message: "File uploads are not configured",
+          requestId: avatar.headers["x-request-id"],
         },
       });
 
