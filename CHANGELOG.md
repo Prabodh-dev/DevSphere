@@ -31,6 +31,18 @@
 - `docs/socket-events.md` describes the socket handshake, events, payloads and limits; a test keeps the event names in step with the code.
 - CORS: credentials are allowed only for origins in `CORS_ORIGINS`, preflight requests are answered, only `Content-Type` and `Authorization` request headers are allowed, and `RateLimit`, `RateLimit-Policy` and `Retry-After` are exposed. Limited requests carry `Retry-After`.
 
+### Operations and structure
+
+- Logging with pino: JSON lines (readable with `LOG_PRETTY=true`), `LOG_LEVEL`, one line per request with method, route pattern, status, duration and request id, secrets redacted. Expected 4xx stay at info, unexpected errors are logged as errors. Socket logs carry the connection id and verified user id. No `console` calls remain in the app.
+- Request ids: `X-Request-Id` is accepted when it is short and safe, otherwise generated, returned on every response and included as `requestId` in every error body (also in the OpenAPI error schema).
+- Prometheus metrics at `/metrics` when `METRICS_ENABLED=true` (optional bearer `METRICS_TOKEN`): process metrics, HTTP duration histogram, socket gauge and event counter, refresh outcome counter. Labels never hold user data.
+- `GET /readyz` (200 only when MongoDB is connected, Redis reported as a field). The Docker `HEALTHCHECK` now uses it. `/healthz` is unchanged.
+- The process logs and exits 1 after an unhandled rejection or uncaught exception, after trying a graceful shutdown with a 10 second limit.
+- One config module reads and validates every environment variable once at startup; invalid values (for example a bad `PORT` or `LOG_LEVEL`) now stop the server with a clear message. The `.env.example` and README tests read the variable list from it.
+- Business logic moved from controllers into `services/`, and the chat and group controllers were renamed to match their content. `docs/architecture.md` describes the layers, and a test checks the import rules.
+- CI: concurrency cancels superseded runs, a `pnpm audit --prod` step (high and critical), a Docker job that builds the image, starts the compose stack, waits for `/readyz` and checks register and login, a CodeQL workflow, Dependabot for npm (pnpm), GitHub Actions and Docker, and actions pinned to current commit SHAs.
+- `dotenv` no longer prints a banner, so log output is clean.
+
 ### Breaking
 
 - Access tokens now expire after 15 minutes. Tokens issued before this change are rejected, so everyone signs in once more.
@@ -40,6 +52,9 @@
 - `GET /api/admin/reports` lists open reports by default (`?status=all` for everything), and `DELETE /api/admin/remove/:type/:id` now accepts `user`.
 - `POST /api/report` returns 404 for unknown targets and 409 for a repeat open report.
 - The Docker image runs with `NODE_ENV=production`, so indexes are no longer built at startup; run `pnpm db:indexes`.
+- Error bodies have a new `requestId` field.
+- Output: logs are JSON lines instead of plain text, and the command line scripts print through the logger.
+- Invalid environment values now stop startup instead of being ignored.
 - Paths: `/api/...` becomes `/api/v1/...`.
 - Errors: `{ message }` becomes `{ error: { code, message, details? } }`; the `socket-error` event is `{ event, error }`.
 - Lists: plain arrays and `{ count, statuses }` become `{ items, nextCursor }`; `GET /api/v1/chat/message/:chatId` is newest first.
