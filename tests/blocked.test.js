@@ -62,6 +62,10 @@ describe("login errors", () => {
 
     expect(unknown.status).toBe(401);
     expect(wrong.status).toBe(401);
-    expect(unknown.body).toEqual(wrong.body);
+    // Same answer, apart from the id of each request.
+    expect({ ...unknown.body.error, requestId: undefined }).toEqual({
+      ...wrong.body.error,
+      requestId: undefined,
+    });
   });
 });

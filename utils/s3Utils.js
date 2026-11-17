@@ -9,6 +9,7 @@ import { getS3Client, isUploadConfigured } from "./s3.js";
 import { EXTENSIONS, detectMime } from "./fileType.js";
 import { badRequest, uploadsNotConfigured } from "./httpError.js";
 import { config } from "../config/index.js";
+import { logger } from "./logger.js";
 
 const notConfigured = uploadsNotConfigured;
 
@@ -66,7 +67,7 @@ export const deleteMedia = async (key) => {
     );
     return true;
   } catch (err) {
-    console.warn("Could not delete stored file:", err.message);
+    logger.warn({ err: err.message }, "Could not delete stored file");
     return false;
   }
 };

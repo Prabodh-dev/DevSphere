@@ -9,6 +9,12 @@ const defaults = {
   NODE_ENV: "test",
   MONGO_AUTO_INDEX: "true",
   DOCS_ENABLED: "",
+
+  // Tests are quiet unless a test captures logs or LOG_LEVEL is set for the run.
+  LOG_LEVEL: process.env.LOG_LEVEL || "silent",
+  LOG_PRETTY: "",
+  METRICS_ENABLED: "",
+  METRICS_TOKEN: "",
   MONGO_URI: "",
   // Origin used by the session tests (refresh and logout check it).
   CORS_ORIGINS: "https://app.example.test",

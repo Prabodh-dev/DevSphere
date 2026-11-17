@@ -13,6 +13,7 @@ import {
 } from "./utils/rooms.js";
 import { verifyAccessToken } from "./utils/tokens.js";
 import { errorBody } from "./utils/apiError.js";
+import { logger } from "./utils/logger.js";
 import { isSessionActive } from "./services/sessionService.js";
 import {
   chatIdPayload,
@@ -68,7 +69,10 @@ const setPresence = async (command, userId) => {
   try {
     await client[command](`${config.redis.keyPrefix}onlineUsers`, userId);
   } catch (err) {
-    console.warn(`Redis ${command} failed:`, err.message);
+    logger.warn(
+      { err: err.message, command, userId },
+      "Redis presence update failed"
+    );
   }
 };
 
@@ -89,6 +93,7 @@ const authenticate = async (socket, next) => {
     socket.data.expiresAt = exp * 1000;
     next();
   } catch {
+    logger.info({ socketId: socket.id }, "socket authentication failed");
     next(new Error("Authentication failed"));
   }
 };
@@ -115,6 +120,12 @@ export const setupSocketIO = (server, options = {}) => {
 
   io.on("connection", (socket) => {
     const userId = socket.data.userId;
+    // Every log line of this connection carries its id and the verified user.
+    const log = logger.child({ socketId: socket.id, userId });
+    log.info("socket connected");
+    socket.on("disconnect", (reason) =>
+      log.info({ reason }, "socket disconnected")
+    );
 
     // Personal room, so events can be addressed to a user, and a room for the
     // login so it can be closed when the login ends.
@@ -147,6 +158,7 @@ export const setupSocketIO = (server, options = {}) => {
 
       violations += 1;
       if (violations === 1) {
+        log.warn({ event }, "socket rate limit exceeded");
         socket.emit(
           "socket-error",
           socketError(event, "RATE_LIMITED", "Rate limit exceeded")
@@ -168,7 +180,7 @@ export const setupSocketIO = (server, options = {}) => {
               socketError(event, err.code, err.message, err.details)
             );
           } else {
-            console.error(`Socket event "${event}" failed:`, err);
+            log.error({ err, event }, "socket event failed");
             socket.emit(
               "socket-error",
               socketError(event, "INTERNAL_ERROR", "Request failed")

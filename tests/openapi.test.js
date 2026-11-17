@@ -100,7 +100,11 @@ describe("OpenAPI document", () => {
       }
     }
     const error = doc.components.schemas.ErrorResponse;
-    expect(error.properties.error.required).toEqual(["code", "message"]);
+    expect(error.properties.error.required).toEqual([
+      "code",
+      "message",
+      "requestId",
+    ]);
     expect(error.example.error.code).toBe("VALIDATION_ERROR");
   });
 

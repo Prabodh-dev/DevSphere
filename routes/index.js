@@ -1,4 +1,5 @@
 import express from "express";
+import { setRouteBase } from "../utils/routePattern.js";
 import authRoutes from "./authRoutes.js";
 import profileRoutes from "./profileRoutes.js";
 import userRoutes from "./userRoutes.js";
@@ -27,6 +28,8 @@ export const mounts = [
 ];
 
 const v1 = express.Router();
-for (const [prefix, router] of mounts) v1.use(prefix, router);
+for (const [prefix, router] of mounts) {
+  v1.use(prefix, setRouteBase(`/api/v1${prefix}`), router);
+}
 
 export default v1;

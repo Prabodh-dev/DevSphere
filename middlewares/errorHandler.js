@@ -1,5 +1,6 @@
 import { HttpError } from "../utils/httpError.js";
 import { errorBody, sendError } from "../utils/apiError.js";
+import { logger } from "../utils/logger.js";
 
 export const notFoundHandler = (req, res) => {
   sendError(res, 404, "NOT_FOUND", "Route not found");
@@ -62,20 +63,34 @@ function describe(err) {
 }
 
 // Single place where errors become responses. Expected client errors are
-// logged briefly; only unexpected failures are logged as errors.
+// logged by the request logger at info; only unexpected failures are logged
+// here, as errors, with the error itself.
 export const errorHandler = (err, req, res, next) => {
   if (res.headersSent) return next(err);
 
   const { status, code, message, details, unexpected } = describe(err);
-  const where = `${req.method} ${req.originalUrl}`;
 
+  res.locals.errorCode = code;
   if (unexpected) {
-    console.error(`Unexpected error on ${where}:`, err);
+    res.locals.unexpectedError = true;
+    (req.log ?? logger).error(
+      {
+        err,
+        requestId: req.id,
+        method: req.method,
+        route: req.originalUrl.split("?")[0],
+      },
+      "Unexpected error"
+    );
   } else if (status >= 500) {
-    console.warn(`${status} ${code} on ${where}`);
-  } else {
-    console.info(`${status} ${code} on ${where}`);
+    // An expected condition, such as uploads that are not configured.
+    res.locals.unexpectedError = true;
+    res.locals.expectedServerError = true;
   }
 
-  res.status(status).json(errorBody(code, message, details));
+  res
+    .status(status)
+    .json(
+      errorBody(code, message, details, res.getHeader("X-Request-Id") ?? req.id)
+    );
 };

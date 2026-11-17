@@ -3,7 +3,7 @@
 import dotenv from "dotenv";
 import { z } from "zod";
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const MIN_JWT_SECRET_LENGTH = 32;
 const UNIT_SECONDS = { "": 1, s: 1, m: 60, h: 3600, d: 86400 };

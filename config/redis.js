@@ -3,6 +3,7 @@
 // app keeps working (and keeps trying to reconnect) when it is unavailable.
 import { createClient } from "redis";
 import { config } from "./index.js";
+import { logger } from "../utils/logger.js";
 
 let redisClient = null;
 let initialised = false;
@@ -15,7 +16,7 @@ export const initRedis = () => {
 
   const url = config.redis.url;
   if (!url) {
-    console.warn("REDIS_URL is not set, online presence tracking is disabled");
+    logger.warn("REDIS_URL is not set, online presence tracking is disabled");
     return null;
   }
 
@@ -29,17 +30,20 @@ export const initRedis = () => {
   redisClient.on("error", (err) => {
     // Log once per outage instead of on every reconnect attempt.
     if (!warned) {
-      console.warn("Redis unavailable, continuing without it:", err.message);
+      logger.warn(
+        { err: err.message },
+        "Redis unavailable, continuing without it"
+      );
       warned = true;
     }
   });
   redisClient.on("ready", () => {
     warned = false;
-    console.log("Connected to Redis");
+    logger.info("Connected to Redis");
   });
 
   redisClient.connect().catch((err) => {
-    console.warn("Redis connection failed:", err.message);
+    logger.warn({ err: err.message }, "Redis connection failed");
   });
 
   return redisClient;
@@ -55,7 +59,7 @@ export const closeRedis = async () => {
     if (redisClient.isReady) await redisClient.quit();
     else redisClient.destroy();
   } catch (err) {
-    console.warn("Error while closing Redis:", err.message);
+    logger.warn({ err: err.message }, "Error while closing Redis");
   }
   redisClient = null;
   initialised = false;

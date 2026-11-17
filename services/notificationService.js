@@ -1,6 +1,7 @@
 import Notification from "../models/Notification.js";
 import { notificationView } from "../utils/serializers.js";
 import { paginate } from "../utils/pagination.js";
+import { logger } from "../utils/logger.js";
 import { userRoom } from "../utils/rooms.js";
 
 // Creates a notification and pushes it to the recipient's open sockets.
@@ -26,7 +27,7 @@ export async function notifyUser(
       await notificationView(notification)
     );
   } catch (err) {
-    console.warn("Could not create notification:", err.message);
+    logger.warn({ err: err.message }, "Could not create notification");
   }
 }
 

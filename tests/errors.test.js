@@ -5,7 +5,6 @@ import {
   vi,
   beforeAll,
   beforeEach,
-  afterEach,
   afterAll,
 } from "vitest";
 import request from "supertest";
@@ -158,30 +157,28 @@ describe("error handler", () => {
   const run = (err) => {
     const res = {
       headersSent: false,
+      locals: {},
+      getHeader: () => undefined,
       status: vi.fn().mockReturnThis(),
       json: vi.fn().mockReturnThis(),
     };
-    errorHandler(err, { method: "GET", originalUrl: "/x" }, res, vi.fn());
-    return res;
+    const req = {
+      method: "GET",
+      originalUrl: "/x?a=1",
+      log: { error: vi.fn() },
+    };
+    errorHandler(err, req, res, vi.fn());
+    return { res, req };
   };
 
-  let spies;
-  beforeEach(() => {
-    spies = {
-      error: vi.spyOn(console, "error").mockImplementation(() => {}),
-      warn: vi.spyOn(console, "warn").mockImplementation(() => {}),
-      info: vi.spyOn(console, "info").mockImplementation(() => {}),
-    };
-  });
-  afterEach(() => vi.restoreAllMocks());
-
   it("hides unexpected errors behind INTERNAL_ERROR", () => {
-    const res = run(new Error("connection string with secret-host"));
+    const { res, req } = run(new Error("connection string with secret-host"));
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({
       error: { code: "INTERNAL_ERROR", message: "Internal server error" },
     });
     expect(JSON.stringify(res.json.mock.calls)).not.toContain("secret-host");
+    expect(req.log.error).toHaveBeenCalledTimes(1);
   });
 
   it("maps library errors to stable codes", () => {
@@ -203,36 +200,13 @@ describe("error handler", () => {
       [{ type: "entity.too.large", message: "x" }, 413, "PAYLOAD_TOO_LARGE"],
     ];
     for (const [err, status, code] of cases) {
-      const res = run(err);
+      const { res, req } = run(err);
       expect(res.status).toHaveBeenCalledWith(status);
       const [body] = res.json.mock.calls[0];
       expect(body.error.code).toBe(code);
       expect(JSON.stringify(body)).not.toContain('"x"');
+      // Client errors are not logged here; the request log covers them.
+      expect(req.log.error).not.toHaveBeenCalled();
     }
-  });
-
-  it("logs client errors quietly and unexpected errors as errors", async () => {
-    const { notFound, uploadsNotConfigured } =
-      await import("../utils/httpError.js");
-
-    run(notFound("nope"));
-    expect(spies.info).toHaveBeenCalledTimes(1);
-    expect(spies.warn).not.toHaveBeenCalled();
-    expect(spies.error).not.toHaveBeenCalled();
-
-    run(uploadsNotConfigured());
-    expect(spies.warn).toHaveBeenCalledTimes(1);
-    expect(spies.error).not.toHaveBeenCalled();
-
-    run(new Error("boom"));
-    expect(spies.error).toHaveBeenCalledTimes(1);
-    expect(String(spies.error.mock.calls[0][0])).toMatch(/Unexpected error/);
-  });
-
-  it("does not log 4xx responses as unhandled errors", async () => {
-    await request(app).get("/api/v1/chat");
-    await request(app).get("/api/v1/nothing-here");
-    expect(spies.error).not.toHaveBeenCalled();
-    expect(spies.info).toHaveBeenCalled();
   });
 });
