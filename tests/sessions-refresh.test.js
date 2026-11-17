@@ -22,6 +22,7 @@ import {
   tokenFromCookie,
   ORIGIN,
 } from "./helpers/users.js";
+import { withEnv } from "./helpers/config.js";
 
 let user;
 let login;
@@ -228,13 +229,9 @@ describe("Origin check", () => {
   });
 
   it("rejects every origin when none are configured", async () => {
-    const saved = process.env.CORS_ORIGINS;
-    process.env.CORS_ORIGINS = "";
-    try {
+    await withEnv({ CORS_ORIGINS: "" }, async () => {
       expect((await refresh(login.cookie)).status).toBe(403);
-    } finally {
-      process.env.CORS_ORIGINS = saved;
-    }
+    });
   });
 });
 

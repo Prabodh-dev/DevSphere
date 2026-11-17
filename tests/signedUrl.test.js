@@ -1,16 +1,9 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
+import { withEnv } from "./helpers/config.js";
 
-// Uses the real presigner with obviously fake credentials; signing is local.
-process.env.AWS_ACCESS_KEY = "test-access-key-id";
-process.env.AWS_SECRET_KEY = "test-secret-access-key";
-process.env.AWS_REGION = "eu-west-1";
-process.env.AVATAR_BUCKET = "example-bucket";
-
+// Uses the real presigner with the obviously fake credentials from
+// tests/setup.js; signing is local.
 const { getSignedMediaUrl } = await import("../utils/s3Utils.js");
-
-beforeEach(() => {
-  delete process.env.MEDIA_URL_TTL_SECONDS;
-});
 
 describe("signed media URLs", () => {
   it("point at the private bucket and expire after five minutes by default", async () => {
@@ -22,12 +15,13 @@ describe("signed media URLs", () => {
   });
 
   it("uses the configured lifetime, capped at one hour", async () => {
-    process.env.MEDIA_URL_TTL_SECONDS = "60";
-    let url = new URL(await getSignedMediaUrl("a/b.png"));
-    expect(url.searchParams.get("X-Amz-Expires")).toBe("60");
-
-    process.env.MEDIA_URL_TTL_SECONDS = "999999";
-    url = new URL(await getSignedMediaUrl("a/b.png"));
-    expect(url.searchParams.get("X-Amz-Expires")).toBe("3600");
+    await withEnv({ MEDIA_URL_TTL_SECONDS: "60" }, async () => {
+      const url = new URL(await getSignedMediaUrl("a/b.png"));
+      expect(url.searchParams.get("X-Amz-Expires")).toBe("60");
+    });
+    await withEnv({ MEDIA_URL_TTL_SECONDS: "999999" }, async () => {
+      const url = new URL(await getSignedMediaUrl("a/b.png"));
+      expect(url.searchParams.get("X-Amz-Expires")).toBe("3600");
+    });
   });
 });

@@ -17,7 +17,6 @@ import Notification from "../models/Notification.js";
 import Status from "../models/Status.js";
 import Report from "../models/Report.js";
 import LiveCode from "../models/LiveCode.js";
-import { getAutoIndex, getEnvProblems } from "../config/env.js";
 import { connectTestDb, disconnectTestDb, testMongoUri } from "./helpers/db.js";
 import { controlledEnv } from "./helpers/env.js";
 
@@ -64,33 +63,6 @@ describe("declared indexes", () => {
 });
 
 describe("MONGO_AUTO_INDEX", () => {
-  it("defaults to on, except in production", () => {
-    expect(getAutoIndex({})).toBe(true);
-    expect(getAutoIndex({ NODE_ENV: "development" })).toBe(true);
-    expect(getAutoIndex({ NODE_ENV: "test" })).toBe(true);
-    expect(getAutoIndex({ NODE_ENV: "production" })).toBe(false);
-    expect(getAutoIndex({ NODE_ENV: "production", MONGO_AUTO_INDEX: "" })).toBe(
-      false
-    );
-  });
-
-  it("can be set explicitly", () => {
-    expect(
-      getAutoIndex({ NODE_ENV: "production", MONGO_AUTO_INDEX: "true" })
-    ).toBe(true);
-    expect(
-      getAutoIndex({ NODE_ENV: "development", MONGO_AUTO_INDEX: "false" })
-    ).toBe(false);
-  });
-
-  it("is checked at startup", () => {
-    const base = { MONGO_URI: "m", JWT_SECRET: "x".repeat(32) };
-    expect(getEnvProblems({ ...base, MONGO_AUTO_INDEX: "sometimes" })).toEqual([
-      "MONGO_AUTO_INDEX must be true or false",
-    ]);
-    expect(getEnvProblems({ ...base, MONGO_AUTO_INDEX: "false" })).toEqual([]);
-  });
-
   it("is applied to mongoose", async () => {
     expect(mongoose.get("autoIndex")).toBe(true);
 

@@ -1,14 +1,14 @@
 // Usage: pnpm db:indexes [--dry-run]
 // Makes the database indexes match the models: creates missing ones and drops
 // ones the models no longer declare.
-import "dotenv/config";
 import { readdirSync } from "fs";
 import path from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 import mongoose from "mongoose";
+import { config } from "../config/index.js";
 
 // Loading the models must not build indexes as a side effect.
-process.env.MONGO_AUTO_INDEX = "false";
+config.mongoAutoIndex = false;
 
 const dryRun = process.argv.includes("--dry-run");
 const modelsDir = path.resolve(
@@ -16,13 +16,13 @@ const modelsDir = path.resolve(
   "../models"
 );
 
-if (!process.env.MONGO_URI) {
+if (!config.mongoUri) {
   console.error("MONGO_URI is not set");
   process.exit(1);
 }
 
 try {
-  await mongoose.connect(process.env.MONGO_URI, {
+  await mongoose.connect(config.mongoUri, {
     serverSelectionTimeoutMS: 5000,
   });
   for (const file of readdirSync(modelsDir).filter((f) => f.endsWith(".js"))) {

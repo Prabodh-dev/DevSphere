@@ -1,4 +1,4 @@
-import { getRefreshTtlDays, isCookieSecure } from "../config/env.js";
+import { config } from "../config/index.js";
 
 export const REFRESH_COOKIE = "refresh_token";
 
@@ -6,14 +6,14 @@ export const REFRESH_COOKIE = "refresh_token";
 const options = () => ({
   httpOnly: true,
   sameSite: "strict",
-  secure: isCookieSecure(),
+  secure: config.auth.cookieSecure,
   path: "/api/v1/auth",
 });
 
 export const setRefreshCookie = (res, token) => {
   res.cookie(REFRESH_COOKIE, token, {
     ...options(),
-    maxAge: getRefreshTtlDays() * 24 * 60 * 60 * 1000,
+    maxAge: config.auth.refreshTokenTtlDays * 24 * 60 * 60 * 1000,
   });
 };
 

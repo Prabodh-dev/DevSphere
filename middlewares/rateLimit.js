@@ -1,5 +1,6 @@
 import rateLimit from "express-rate-limit";
 import { sendError } from "../utils/apiError.js";
+import { config } from "../config/index.js";
 
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
 
@@ -12,11 +13,6 @@ const tooMany = (req, res) => {
     "Too many requests, please try again later",
     Number.isFinite(retryAfter) ? { retryAfterSeconds: retryAfter } : undefined
   );
-};
-
-const toNumber = (value, fallback) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
 export function createLimiters(options = {}) {
@@ -54,12 +50,9 @@ export function createLimiters(options = {}) {
   };
 }
 
-export const limitersFromEnv = (env = process.env) =>
-  createLimiters({
-    generalMax: toNumber(env.RATE_LIMIT_MAX, 300),
-    authMax: toNumber(env.AUTH_RATE_LIMIT_MAX, 10),
-    refreshMax: toNumber(env.REFRESH_RATE_LIMIT_MAX, 60),
-    highlightMax: toNumber(env.HIGHLIGHT_RATE_LIMIT_MAX, 30),
-  });
-
-export const limiters = limitersFromEnv();
+export const limiters = createLimiters({
+  generalMax: config.rateLimit.general,
+  authMax: config.rateLimit.auth,
+  refreshMax: config.rateLimit.refresh,
+  highlightMax: config.rateLimit.highlight,
+});

@@ -1,5 +1,5 @@
 import cors from "cors";
-import { getCorsOrigins } from "../config/env.js";
+import { config } from "../config/index.js";
 
 const METHODS = ["GET", "POST", "PATCH", "DELETE", "OPTIONS"];
 // The request headers the API reads.
@@ -13,7 +13,7 @@ const PREFLIGHT_MAX_AGE_SECONDS = 600;
 export const corsMiddleware = cors((req, callback) => {
   const origin = req.get("origin");
 
-  if (!origin || !getCorsOrigins().includes(origin)) {
+  if (!origin || !config.corsOrigins.includes(origin)) {
     return callback(null, { origin: false });
   }
 

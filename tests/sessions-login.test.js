@@ -12,6 +12,7 @@ import {
   refreshCookieFrom,
   tokenFromCookie,
 } from "./helpers/users.js";
+import { withEnv } from "./helpers/config.js";
 
 beforeAll(connectTestDb);
 afterAll(disconnectTestDb);
@@ -59,36 +60,31 @@ describe("login", () => {
 
   it("marks the cookie Secure when COOKIE_SECURE is true", async () => {
     const user = await createUser();
-    process.env.COOKIE_SECURE = "true";
-    try {
+    await withEnv({ COOKIE_SECURE: "true" }, async () => {
       const { res } = await loginAs(user);
       const header = res.headers["set-cookie"].find((c) =>
         c.startsWith("refresh_token=")
       );
       expect(header).toMatch(/Secure/i);
-    } finally {
-      process.env.COOKIE_SECURE = "false";
-    }
+    });
   });
 
   it("uses the configured token lifetimes", async () => {
     const user = await createUser();
-    process.env.ACCESS_TOKEN_TTL = "5m";
-    process.env.REFRESH_TOKEN_TTL_DAYS = "7";
-    try {
-      const { res } = await loginAs(user);
-      const payload = jwt.verify(res.body.token, process.env.JWT_SECRET);
-      expect(payload.exp - payload.iat).toBe(300);
-      const header = res.headers["set-cookie"].find((c) =>
-        c.startsWith("refresh_token=")
-      );
-      expect(Number(header.match(/Max-Age=(\d+)/i)[1])).toBeLessThanOrEqual(
-        7 * 86400
-      );
-    } finally {
-      process.env.ACCESS_TOKEN_TTL = "15m";
-      process.env.REFRESH_TOKEN_TTL_DAYS = "30";
-    }
+    await withEnv(
+      { ACCESS_TOKEN_TTL: "5m", REFRESH_TOKEN_TTL_DAYS: "7" },
+      async () => {
+        const { res } = await loginAs(user);
+        const payload = jwt.verify(res.body.token, process.env.JWT_SECRET);
+        expect(payload.exp - payload.iat).toBe(300);
+        const header = res.headers["set-cookie"].find((c) =>
+          c.startsWith("refresh_token=")
+        );
+        expect(Number(header.match(/Max-Age=(\d+)/i)[1])).toBeLessThanOrEqual(
+          7 * 86400
+        );
+      }
+    );
   });
 
   it("registration signs the user in the same way", async () => {

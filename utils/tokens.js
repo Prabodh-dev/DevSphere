@@ -1,16 +1,16 @@
 import jwt from "jsonwebtoken";
 import { createHash, randomBytes } from "crypto";
-import { getAccessTokenTtlSeconds } from "../config/env.js";
+import { config } from "../config/index.js";
 
 // Access token: short-lived JWT. `sid` names the session (family) it belongs to.
 export const signAccessToken = (userId, sessionId) =>
-  jwt.sign({ userId, sid: sessionId }, process.env.JWT_SECRET, {
-    expiresIn: getAccessTokenTtlSeconds(),
+  jwt.sign({ userId, sid: sessionId }, config.jwtSecret, {
+    expiresIn: config.auth.accessTokenTtlSeconds,
   });
 
 // Returns { userId, sid, exp } or throws when the token is invalid or expired.
 export const verifyAccessToken = (token) => {
-  const payload = jwt.verify(token, process.env.JWT_SECRET);
+  const payload = jwt.verify(token, config.jwtSecret);
   if (typeof payload.userId !== "string" || typeof payload.sid !== "string") {
     throw new Error("token has no session");
   }

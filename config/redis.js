@@ -2,8 +2,7 @@
 // Redis is optional: it is only used for online-presence tracking, so the
 // app keeps working (and keeps trying to reconnect) when it is unavailable.
 import { createClient } from "redis";
-import dotenv from "dotenv";
-dotenv.config();
+import { config } from "./index.js";
 
 let redisClient = null;
 let initialised = false;
@@ -14,7 +13,7 @@ export const initRedis = () => {
   if (initialised) return redisClient;
   initialised = true;
 
-  const url = process.env.REDIS_URL;
+  const url = config.redis.url;
   if (!url) {
     console.warn("REDIS_URL is not set, online presence tracking is disabled");
     return null;

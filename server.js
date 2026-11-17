@@ -1,10 +1,9 @@
-import "dotenv/config";
 import mongoose from "mongoose";
 import http from "http";
 import app from "./app.js";
 import { setupSocketIO } from "./socket.js";
 import { closeRedis } from "./config/redis.js";
-import { getEnvProblems } from "./config/env.js";
+import { config, getEnvProblems } from "./config/index.js";
 import { cleanupExpiredStatusMedia } from "./utils/mediaCleanup.js";
 
 const problems = getEnvProblems();
@@ -13,7 +12,7 @@ if (problems.length > 0) {
   process.exit(1);
 }
 
-const PORT = process.env.PORT || 5000;
+const PORT = config.port;
 const server = http.createServer(app);
 let io;
 let shuttingDown = false;
@@ -41,7 +40,7 @@ async function shutdown(signal) {
 }
 
 async function start() {
-  await mongoose.connect(process.env.MONGO_URI, {
+  await mongoose.connect(config.mongoUri, {
     serverSelectionTimeoutMS: 5000,
   });
   console.log("MongoDB connected");

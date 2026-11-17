@@ -8,18 +8,9 @@ import { randomUUID } from "crypto";
 import { getS3Client, isUploadConfigured } from "./s3.js";
 import { EXTENSIONS, detectMime } from "./fileType.js";
 import { badRequest, uploadsNotConfigured } from "./httpError.js";
-
-const DEFAULT_URL_TTL_SECONDS = 300;
+import { config } from "../config/index.js";
 
 const notConfigured = uploadsNotConfigured;
-
-const urlTtl = () => {
-  const configured = Number(process.env.MEDIA_URL_TTL_SECONDS);
-  if (!Number.isFinite(configured) || configured <= 0) {
-    return DEFAULT_URL_TTL_SECONDS;
-  }
-  return Math.min(Math.floor(configured), 3600);
-};
 
 // Uploads a file to the private bucket and returns its object key. The key is
 // generated here; nothing supplied by the client ends up in it.
@@ -36,7 +27,7 @@ export const uploadMedia = async ({ buffer, mimetype, prefix }) => {
   try {
     await getS3Client().send(
       new PutObjectCommand({
-        Bucket: process.env.AVATAR_BUCKET,
+        Bucket: config.aws.bucket,
         Key: key,
         Body: buffer,
         ContentType: detected,
@@ -55,10 +46,12 @@ export const uploadMedia = async ({ buffer, mimetype, prefix }) => {
 export const getSignedMediaUrl = async (key) => {
   if (!key || !isUploadConfigured()) return "";
   const command = new GetObjectCommand({
-    Bucket: process.env.AVATAR_BUCKET,
+    Bucket: config.aws.bucket,
     Key: key,
   });
-  return getSignedUrl(getS3Client(), command, { expiresIn: urlTtl() });
+  return getSignedUrl(getS3Client(), command, {
+    expiresIn: config.mediaUrlTtlSeconds,
+  });
 };
 
 // Best effort: a failed delete is logged and never fails the request.
@@ -67,7 +60,7 @@ export const deleteMedia = async (key) => {
   try {
     await getS3Client().send(
       new DeleteObjectCommand({
-        Bucket: process.env.AVATAR_BUCKET,
+        Bucket: config.aws.bucket,
         Key: key,
       })
     );
