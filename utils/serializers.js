@@ -1,5 +1,4 @@
 import { getSignedMediaUrl } from "./s3Utils.js";
-import { followCounts } from "./follows.js";
 import { previewOf } from "./chatPreview.js";
 
 // Only what other users may see about an account.
@@ -14,7 +13,7 @@ export const publicUserView = async (user) => {
 
 // A profile as shown to clients. The username, avatar and tags belong to the
 // user record; the profile holds the bio and links.
-export const profileView = async (profile, user) => {
+export const profileView = async (profile, user, counts) => {
   const { _id, bio, github, linkedin, website, createdAt, updatedAt } =
     profile.toObject();
   return {
@@ -26,7 +25,7 @@ export const profileView = async (profile, user) => {
     github,
     linkedin,
     website,
-    ...(await followCounts(user._id)),
+    ...counts,
     createdAt,
     updatedAt,
   };
@@ -66,5 +65,13 @@ export const chatView = async (chat) => {
           createdAt: latest.createdAt,
         }
       : null;
+  return plain;
+};
+
+export const notificationView = async (notification) => {
+  const plain = notification.toObject();
+  if (plain.fromUser && plain.fromUser.username !== undefined) {
+    plain.fromUser = await publicUserView(plain.fromUser);
+  }
   return plain;
 };

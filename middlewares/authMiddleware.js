@@ -1,7 +1,7 @@
 import User from "../models/User.js";
 import { accountBlocked, unauthorized } from "../utils/httpError.js";
 import { verifyAccessToken } from "../utils/tokens.js";
-import { isSessionActive } from "../utils/sessions.js";
+import { isSessionActive } from "../services/sessionService.js";
 
 const protect = async (req, res, next) => {
   const authHeader = req.headers.authorization;

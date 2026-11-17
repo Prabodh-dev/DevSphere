@@ -24,7 +24,7 @@ function handledEvents() {
 
 // Events the server sends: .emit("name", ...) in the socket code and notifications.
 function emittedEvents() {
-  const source = read("socket.js") + read("utils/notify.js");
+  const source = read("socket.js") + read("services/notificationService.js");
   return [...source.matchAll(/\.emit\(\s*"([\w-]+)"/g)]
     .map((m) => m[1])
     .filter((name) => !BUILT_IN.has(name));
