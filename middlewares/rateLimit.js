@@ -1,11 +1,17 @@
 import rateLimit from "express-rate-limit";
+import { sendError } from "../utils/apiError.js";
 
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
 
 const tooMany = (req, res) => {
-  res
-    .status(429)
-    .json({ message: "Too many requests, please try again later" });
+  const retryAfter = Number(res.getHeader("Retry-After"));
+  sendError(
+    res,
+    429,
+    "RATE_LIMITED",
+    "Too many requests, please try again later",
+    Number.isFinite(retryAfter) ? { retryAfterSeconds: retryAfter } : undefined
+  );
 };
 
 const toNumber = (value, fallback) => {

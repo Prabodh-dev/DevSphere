@@ -19,6 +19,7 @@ import { getAccessTokenTtlSeconds } from "../config/env.js";
 import {
   HttpError,
   conflict,
+  accountBlocked,
   forbidden,
   notFound,
   unauthorized,
@@ -70,7 +71,7 @@ export const loginUser = async (req, res) => {
   const match = await bcrypt.compare(password, user?.password ?? DUMMY_HASH);
   if (!user || !match) throw unauthorized("Invalid credentials");
 
-  if (user.isBlocked) throw forbidden("Account is blocked");
+  if (user.isBlocked) throw accountBlocked();
 
   await signIn(req, res, user, 200);
 };

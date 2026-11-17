@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import Session from "../models/Session.js";
 import User from "../models/User.js";
-import { forbidden, unauthorized } from "./httpError.js";
+import { accountBlocked, unauthorized } from "./httpError.js";
 import { getRefreshTtlDays } from "../config/env.js";
 import { newRefreshToken, hashToken } from "./tokens.js";
 import { sessionRoom } from "./rooms.js";
@@ -112,7 +112,7 @@ export async function rotateSession(rawToken, req, io) {
   if (!user) throw invalid();
   if (user.isBlocked) {
     await revokeAllForUser(session.userId, io);
-    throw forbidden("Account is blocked");
+    throw accountBlocked();
   }
 
   // Only one request can claim a token, even when several arrive together.

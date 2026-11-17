@@ -137,7 +137,10 @@ describe("chat events", () => {
     const c = await server.client(carol);
     const error = once(c, "socket-error");
     c.emit("join-chat", chat.id);
-    expect(await error).toMatchObject({ event: "join-chat" });
+    expect(await error).toEqual({
+      event: "join-chat",
+      error: { code: "FORBIDDEN", message: "Not a member of this chat" },
+    });
   });
 
   it("refuses sends, group messages and typing from non-members", async () => {
@@ -343,7 +346,15 @@ describe("live code", () => {
 
     const bad = once(a, "socket-error");
     a.emit("code-change", change("not-an-object-id"));
-    expect(await bad).toMatchObject({ event: "code-change" });
+    const badError = await bad;
+    expect(badError).toMatchObject({
+      event: "code-change",
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Invalid payload",
+        details: [{ field: "chatId", message: expect.any(String) }],
+      },
+    });
 
     a.emit("code-change", change(chat.id, "still works"));
     await sleep(300);

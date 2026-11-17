@@ -59,7 +59,7 @@ describe("POST /api/group/create", () => {
     if (body.members?.[0] === "PLACEHOLDER") body.members = [bob.id];
     const res = await call("post", "/api/v1/group/create", alice, body);
     expect(res.status).toBe(400);
-    expect(Object.keys(res.body)).toEqual(["message"]);
+    expect(Object.keys(res.body)).toEqual(["error"]);
   });
 
   it("returns 400 when a member does not exist", async () => {

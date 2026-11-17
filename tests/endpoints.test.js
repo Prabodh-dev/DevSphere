@@ -219,6 +219,6 @@ describe("snippets", () => {
 
     const bad = await request(app).post("/api/v1/snippets/highlight").send({});
     expect(bad.status).toBe(400);
-    expect(Object.keys(bad.body)).toEqual(["message"]);
+    expect(Object.keys(bad.body)).toEqual(["error"]);
   });
 });

@@ -38,7 +38,7 @@ describe("registration rules", () => {
   ])("rejects a password that is %s", async (_label, password) => {
     const res = await register({ password });
     expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/^password/);
+    expect(res.body.error.details.map((d) => d.field)).toContain("password");
   });
 
   it.each([
@@ -48,7 +48,7 @@ describe("registration rules", () => {
   ])("rejects a username that is %s", async (_label, username) => {
     const res = await register({ username });
     expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/^username/);
+    expect(res.body.error.details.map((d) => d.field)).toContain("username");
   });
 
   it("rejects values that are not plain strings", async () => {

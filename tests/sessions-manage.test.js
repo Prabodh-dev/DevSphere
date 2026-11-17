@@ -253,7 +253,7 @@ describe("POST /api/v1/auth/change-password", () => {
       newPassword,
     });
     expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/^newPassword/);
+    expect(res.body.error.details[0].field).toBe("newPassword");
   });
 
   it("refuses to reuse the current password and needs a token", async () => {

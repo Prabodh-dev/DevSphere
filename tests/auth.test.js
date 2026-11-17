@@ -39,7 +39,7 @@ describe("auth flow (current behaviour)", () => {
       .send({ ...credentials, username: "alice2" });
 
     expect(res.status).toBe(409);
-    expect(res.body.message).toBe("Email already used");
+    expect(res.body.error.message).toBe("Email already used");
   });
 
   it("logs in with correct credentials", async () => {
@@ -69,13 +69,13 @@ describe("auth flow (current behaviour)", () => {
   it("guards protected routes with a bearer token", async () => {
     const none = await request(app).get("/api/v1/profile/me");
     expect(none.status).toBe(401);
-    expect(none.body.message).toBe("No token provided");
+    expect(none.body.error.message).toBe("No token provided");
 
     const bad = await request(app)
       .get("/api/v1/profile/me")
       .set(bearer("not-a-token"));
     expect(bad.status).toBe(401);
-    expect(bad.body.message).toBe("Invalid token");
+    expect(bad.body.error.message).toBe("Invalid token");
 
     const reg = await request(app)
       .post("/api/v1/auth/register")
@@ -85,7 +85,7 @@ describe("auth flow (current behaviour)", () => {
       .set(bearer(reg.body.token));
     // Authenticated, but no profile has been created yet.
     expect(ok.status).toBe(404);
-    expect(ok.body.message).toBe("Profile not found");
+    expect(ok.body.error.message).toBe("Profile not found");
   });
 });
 
@@ -117,7 +117,7 @@ describe("registration and login validation", () => {
       .post("/api/v1/auth/register")
       .send({ ...credentials, email: "second@example.test" });
     expect(res.status).toBe(409);
-    expect(res.body.message).toBe("Username already taken");
+    expect(res.body.error.message).toBe("Username already taken");
   });
 
   it.each([
@@ -130,7 +130,7 @@ describe("registration and login validation", () => {
   ])("rejects registration with %s", async (_label, body) => {
     const res = await request(app).post("/api/v1/auth/register").send(body);
     expect(res.status).toBe(400);
-    expect(Object.keys(res.body)).toEqual(["message"]);
+    expect(Object.keys(res.body)).toEqual(["error"]);
   });
 
   it("rejects login bodies that are not plain strings", async () => {
