@@ -122,3 +122,46 @@ describe("API documentation", () => {
     }
   });
 });
+
+describe("Operations documentation", () => {
+  it("covers logging, request ids, metrics, health and shutdown", () => {
+    const readme = read("README.md");
+    expect(readme).toContain("## Operations");
+    for (const text of [
+      "LOG_LEVEL",
+      "LOG_PRETTY",
+      "X-Request-Id",
+      "requestId",
+      "METRICS_ENABLED",
+      "METRICS_TOKEN",
+      "scrape_configs",
+      "http_request_duration_seconds",
+      "socket_connections",
+      "socket_events_total",
+      "auth_refresh_total",
+      "reuse_detected",
+      "/healthz",
+      "/readyz",
+      "SIGTERM",
+      "unhandled promise rejection",
+      "docs/architecture.md",
+    ]) {
+      expect(readme, text).toContain(text);
+    }
+  });
+
+  it("records the operations changes in the changelog", () => {
+    const changelog = read("CHANGELOG.md");
+    for (const text of [
+      "pino",
+      "/metrics",
+      "/readyz",
+      "requestId",
+      "CodeQL",
+      "Dependabot",
+      "services/",
+    ]) {
+      expect(changelog, text).toContain(text);
+    }
+  });
+});

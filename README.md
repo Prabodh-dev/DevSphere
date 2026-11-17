@@ -241,6 +241,71 @@ it), where indexes are synced explicitly with `pnpm db:indexes` instead. Use
 `pnpm db:indexes --dry-run` to see the difference first. The compose file turns
 startup indexing on for the local database.
 
+## Operations
+
+### Logging and request ids
+
+Logs are JSON lines on stdout (set `LOG_PRETTY=true` for readable text while
+developing). `LOG_LEVEL` sets the level, `info` by default; the tests run
+silent. One line is written per request with the method, route pattern (never
+the real path or ids), status, duration in milliseconds and request id, plus a
+few lines for startup, shutdown, sockets and errors. Expected client errors
+(4xx) are logged at `info`, an unconfigured upload as a warning, and only
+unexpected failures as errors (with the stack). Authorization headers,
+cookies, passwords and tokens are redacted and request bodies are not logged.
+Socket log lines carry the connection id (`socketId`) and the verified `userId`.
+
+Every response has an `X-Request-Id` header. A request id sent by the client is
+kept if it is 1 to 64 characters of letters, digits, `.`, `_` or `-`; otherwise
+a new one is made. The same id is `requestId` in every error body and in the log
+line of the request, so a reported error can be found in the logs.
+
+### Metrics
+
+Set `METRICS_ENABLED=true` to serve Prometheus metrics at `GET /metrics`
+(not versioned, not rate limited, off otherwise). If `METRICS_TOKEN` is set the
+request needs `Authorization: Bearer <token>`; without a token anyone who can
+reach the port can read the metrics, so keep it on a private network. Exposed:
+
+- the default Node.js process metrics
+- `http_request_duration_seconds` (histogram; labels `method`, `route` and
+  `status_class`, where `route` is the pattern such as `/api/v1/users/:id/follow`)
+- `socket_connections` (gauge) and `socket_events_total` (counter by `event`)
+- `auth_refresh_total` (counter by `outcome`: `rotated`, `reuse_detected` or
+  `rejected`)
+
+No label ever holds a user id, email or token. A scrape configuration:
+
+```yaml
+scrape_configs:
+  - job_name: devsphere
+    metrics_path: /metrics
+    scrape_interval: 15s
+    # Only when METRICS_TOKEN is set:
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/devsphere-metrics-token
+    static_configs:
+      - targets: ["devsphere:5000"]
+```
+
+### Health
+
+- `GET /healthz`: liveness. 200 while MongoDB is connected, 503 otherwise.
+- `GET /readyz`: readiness. 200 only when MongoDB is connected, 503 otherwise.
+  The body also reports Redis as `up`, `down` or `disabled`; Redis is optional
+  and never makes the app unready.
+
+Both are unversioned and need no token. The Docker `HEALTHCHECK` uses `/readyz`.
+
+### Shutdown and crashes
+
+On `SIGTERM` or `SIGINT` the server stops accepting connections, closes the
+sockets, Redis and MongoDB and exits 0. If that takes longer than 10 seconds it
+exits 1. After an unhandled promise rejection or an uncaught exception it logs
+the error, tries the same graceful shutdown and exits 1, so a supervisor
+restarts it.
+
 ## Admin access
 
 There is no default admin. Register a normal account, then promote it:
@@ -288,7 +353,7 @@ The docs are on by default and off in production unless `DOCS_ENABLED=true`.
 Conventions:
 
 - Everything except the routes marked public needs `Authorization: Bearer <access token>`.
-- Errors always look like `{ "error": { "code", "message", "details"? } }` with a stable `code` such as `VALIDATION_ERROR`, `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `RATE_LIMITED` or `UPLOADS_NOT_CONFIGURED`. Validation errors list the failing fields in `details`.
+- Errors always look like `{ "error": { "code", "message", "details"?, "requestId" } }` with a stable `code` such as `VALIDATION_ERROR`, `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `RATE_LIMITED` or `UPLOADS_NOT_CONFIGURED`. Validation errors list the failing fields in `details`, and `requestId` matches the `X-Request-Id` response header.
 - Lists take `limit` (default 30, at most 100) and `cursor`, and answer `{ "items": [...], "nextCursor": "..." | null }`. Pass `nextCursor` back as `cursor` for the next page. Cursors are opaque; an invalid one is a 400. Chat messages come newest first, so a later page holds older messages.
 - Rate limited responses (429) carry a `Retry-After` header, and every response has `RateLimit` and `RateLimit-Policy` headers.
 - Browsers can call the API from the origins in `CORS_ORIGINS`: credentials are allowed for them only, and the rate limit headers are readable.
@@ -363,17 +428,25 @@ will work.
 
 ```
 .
-├── app.js            Express app and route wiring
+├── app.js            Express app and middleware order
 ├── server.js         Startup, shutdown, database connection
 ├── socket.js         Socket.IO server
-├── config/           Environment and Redis setup
-├── controllers/
-├── middlewares/
-├── models/
-├── routes/
-├── utils/
+├── config/           The validated settings and the Redis connection
+├── routes/           Paths, middleware and controllers
+├── schemas/          zod schemas for input and responses
+├── controllers/      Read input, call a service, shape the response
+├── services/         Business logic
+├── models/           Mongoose schemas
+├── middlewares/      Auth, validation, errors, logging, CORS, limits
+├── utils/            Small helpers (tokens, pagination, logging, uploads)
+├── migrations/       Ordered data migrations
+├── scripts/          pnpm migrate, db:indexes, make-admin, smoke test
+├── openapi/          The OpenAPI document builder
+├── docs/             Architecture and socket events
 └── tests/
 ```
+
+How the layers fit together is described in [docs/architecture.md](docs/architecture.md).
 
 ## Contributing
 
