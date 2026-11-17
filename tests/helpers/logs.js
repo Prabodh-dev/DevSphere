@@ -4,15 +4,19 @@ import { logger, setLogSink } from "../../utils/logger.js";
 // default, so this turns the logger up and collects the JSON lines.
 export function captureLogs(level = "trace") {
   const lines = [];
+  const raw = [];
   const previous = logger.level;
   logger.level = level;
   setLogSink((chunk) => {
     for (const text of String(chunk).split("\n")) {
-      if (text.trim()) lines.push(JSON.parse(text));
+      if (!text.trim()) continue;
+      raw.push(text);
+      lines.push(JSON.parse(text));
     }
   });
   return {
     lines,
+    raw,
     stop() {
       logger.level = previous;
       setLogSink(null);
