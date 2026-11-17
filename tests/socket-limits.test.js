@@ -32,7 +32,7 @@ describe("socket rate limit", () => {
 
     expect(await limited).toEqual({
       event: "typing",
-      message: "Rate limit exceeded",
+      error: { code: "RATE_LIMITED", message: "Rate limit exceeded" },
     });
   });
 

@@ -1,44 +1,81 @@
 import { HttpError } from "../utils/httpError.js";
+import { errorBody, sendError } from "../utils/apiError.js";
 
 export const notFoundHandler = (req, res) => {
-  res.status(404).json({ message: "Route not found" });
+  sendError(res, 404, "NOT_FOUND", "Route not found");
 };
 
-// Single place where errors become responses. Details are logged on the
-// server and never sent to the client.
+// What an error looks like to a client. Nothing from the original error's
+// message or stack is ever included for errors we did not raise ourselves.
+function describe(err) {
+  if (err instanceof HttpError) {
+    return {
+      status: err.status,
+      code: err.code,
+      message: err.message,
+      details: err.details,
+    };
+  }
+  if (err.type === "entity.parse.failed") {
+    return {
+      status: 400,
+      code: "MALFORMED_REQUEST",
+      message: "Malformed request body",
+    };
+  }
+  if (err.type === "entity.too.large") {
+    return {
+      status: 413,
+      code: "PAYLOAD_TOO_LARGE",
+      message: "Request body too large",
+    };
+  }
+  if (err.name === "CastError") {
+    return { status: 400, code: "VALIDATION_ERROR", message: "Invalid id" };
+  }
+  if (err.name === "ValidationError") {
+    return { status: 400, code: "VALIDATION_ERROR", message: "Invalid input" };
+  }
+  if (err.code === 11000) {
+    return {
+      status: 409,
+      code: "CONFLICT",
+      message: "Resource already exists",
+    };
+  }
+  if (err.name === "MulterError") {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return {
+        status: 413,
+        code: "PAYLOAD_TOO_LARGE",
+        message: "File too large",
+      };
+    }
+    return { status: 400, code: "VALIDATION_ERROR", message: "Invalid upload" };
+  }
+  return {
+    status: 500,
+    code: "INTERNAL_ERROR",
+    message: "Internal server error",
+    unexpected: true,
+  };
+}
+
+// Single place where errors become responses. Expected client errors are
+// logged briefly; only unexpected failures are logged as errors.
 export const errorHandler = (err, req, res, next) => {
   if (res.headersSent) return next(err);
 
-  let status = 500;
-  let message = "Internal server error";
+  const { status, code, message, details, unexpected } = describe(err);
+  const where = `${req.method} ${req.originalUrl}`;
 
-  if (err instanceof HttpError) {
-    status = err.status;
-    message = err.message;
-  } else if (err.type === "entity.parse.failed") {
-    status = 400;
-    message = "Malformed request body";
-  } else if (err.type === "entity.too.large") {
-    status = 413;
-    message = "Request body too large";
-  } else if (err.name === "CastError") {
-    status = 400;
-    message = "Invalid id";
-  } else if (err.name === "ValidationError") {
-    status = 400;
-    message = "Invalid input";
-  } else if (err.code === 11000) {
-    status = 409;
-    message = "Resource already exists";
-  } else if (err.name === "MulterError") {
-    const tooLarge = err.code === "LIMIT_FILE_SIZE";
-    status = tooLarge ? 413 : 400;
-    message = tooLarge ? "File too large" : "Invalid upload";
+  if (unexpected) {
+    console.error(`Unexpected error on ${where}:`, err);
+  } else if (status >= 500) {
+    console.warn(`${status} ${code} on ${where}`);
+  } else {
+    console.info(`${status} ${code} on ${where}`);
   }
 
-  if (status >= 500) {
-    console.error(`Unhandled error on ${req.method} ${req.originalUrl}:`, err);
-  }
-
-  res.status(status).json({ message });
+  res.status(status).json(errorBody(code, message, details));
 };

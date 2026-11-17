@@ -26,7 +26,9 @@ describe("app basics", () => {
     const res = await request(app).get("/api/v1/does-not-exist");
     expect(res.status).toBe(404);
     expect(res.headers["content-type"]).toMatch(/json/);
-    expect(res.body).toEqual({ message: "Route not found" });
+    expect(res.body).toEqual({
+      error: { code: "NOT_FOUND", message: "Route not found" },
+    });
   });
 
   it("returns a clean 400 for a malformed JSON body", async () => {
@@ -35,6 +37,8 @@ describe("app basics", () => {
       .set("Content-Type", "application/json")
       .send('{"email": ');
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ message: "Malformed request body" });
+    expect(res.body).toEqual({
+      error: { code: "MALFORMED_REQUEST", message: "Malformed request body" },
+    });
   });
 });

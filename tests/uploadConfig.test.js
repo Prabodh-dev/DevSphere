@@ -72,7 +72,12 @@ describe("uploads without configuration", () => {
       .set(bearer(user.token))
       .attach("avatar", png(), { filename: "a.png", contentType: "image/png" });
     expect(avatar.status).toBe(503);
-    expect(avatar.body).toEqual({ message: "File uploads are not configured" });
+    expect(avatar.body).toEqual({
+      error: {
+        code: "UPLOADS_NOT_CONFIGURED",
+        message: "File uploads are not configured",
+      },
+    });
 
     const status = await request(app)
       .post("/api/v1/status")

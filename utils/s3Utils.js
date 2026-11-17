@@ -7,12 +7,11 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "crypto";
 import { getS3Client, isUploadConfigured } from "./s3.js";
 import { EXTENSIONS, detectMime } from "./fileType.js";
-import { HttpError, badRequest } from "./httpError.js";
+import { badRequest, uploadsNotConfigured } from "./httpError.js";
 
 const DEFAULT_URL_TTL_SECONDS = 300;
 
-const notConfigured = () =>
-  new HttpError(503, "File uploads are not configured");
+const notConfigured = uploadsNotConfigured;
 
 const urlTtl = () => {
   const configured = Number(process.env.MEDIA_URL_TTL_SECONDS);

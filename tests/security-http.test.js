@@ -54,7 +54,10 @@ describe("request size", () => {
       .post("/api/v1/snippets/highlight")
       .send({ code: "a".repeat(400 * 1024) });
     expect(res.status).toBe(413);
-    expect(res.body).toEqual({ message: "Request body too large" });
+    expect(res.body.error).toEqual({
+      code: "PAYLOAD_TOO_LARGE",
+      message: "Request body too large",
+    });
   });
 
   it("caps the size of snippets that are highlighted", async () => {
@@ -79,7 +82,8 @@ describe("rate limits", () => {
     expect(statuses.slice(3)).toEqual([429, 429]);
 
     const blocked = await attempt();
-    expect(blocked.body).toEqual({
+    expect(blocked.body.error).toMatchObject({
+      code: "RATE_LIMITED",
       message: "Too many requests, please try again later",
     });
     expect(

@@ -12,6 +12,7 @@ import {
   userRoom,
 } from "./utils/rooms.js";
 import { verifyAccessToken } from "./utils/tokens.js";
+import { errorBody } from "./utils/apiError.js";
 import { isSessionActive } from "./utils/sessions.js";
 import {
   chatIdPayload,
@@ -31,15 +32,30 @@ const DEFAULT_RATE_LIMIT = { max: 100, windowMs: 10 * 1000 };
 const MAX_VIOLATIONS = 50;
 
 // Raised for bad client input; the message is safe to send back.
-class SocketInputError extends Error {}
+class SocketInputError extends Error {
+  constructor(message, code = "VALIDATION_ERROR", details) {
+    super(message);
+    this.code = code;
+    this.details = details;
+  }
+}
+
+// socket-error payload: { event, error: { code, message, details? } }
+const socketError = (event, code, message, details) => ({
+  event,
+  ...errorBody(code, message, details),
+});
 
 const parse = (schema, payload) => {
   const result = schema.safeParse(payload);
   if (!result.success) {
-    const issue = result.error.issues[0];
-    const path = issue.path.join(".");
     throw new SocketInputError(
-      path ? `${path}: ${issue.message}` : "Invalid payload"
+      "Invalid payload",
+      "VALIDATION_ERROR",
+      result.error.issues.map((issue) => ({
+        field: issue.path.join("."),
+        message: issue.message,
+      }))
     );
   }
   return result.data;
@@ -134,7 +150,10 @@ export const setupSocketIO = (server, options = {}) => {
 
       violations += 1;
       if (violations === 1) {
-        socket.emit("socket-error", { event, message: "Rate limit exceeded" });
+        socket.emit(
+          "socket-error",
+          socketError(event, "RATE_LIMITED", "Rate limit exceeded")
+        );
       }
       if (violations >= MAX_VIOLATIONS) socket.disconnect(true);
     });
@@ -147,10 +166,16 @@ export const setupSocketIO = (server, options = {}) => {
           await handler(...args);
         } catch (err) {
           if (err instanceof SocketInputError) {
-            socket.emit("socket-error", { event, message: err.message });
+            socket.emit(
+              "socket-error",
+              socketError(event, err.code, err.message, err.details)
+            );
           } else {
             console.error(`Socket event "${event}" failed:`, err);
-            socket.emit("socket-error", { event, message: "Request failed" });
+            socket.emit(
+              "socket-error",
+              socketError(event, "INTERNAL_ERROR", "Request failed")
+            );
           }
         }
       });
@@ -160,7 +185,7 @@ export const setupSocketIO = (server, options = {}) => {
     const requireMember = async (chatId) => {
       const id = parse(chatIdPayload, chatId);
       if (!(await isChatMember(id, userId))) {
-        throw new SocketInputError("Not a member of this chat");
+        throw new SocketInputError("Not a member of this chat", "FORBIDDEN");
       }
       return id;
     };
