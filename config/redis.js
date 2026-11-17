@@ -53,6 +53,12 @@ export const initRedis = () => {
 export const getRedisClient = () =>
   redisClient && redisClient.isReady ? redisClient : null;
 
+// "disabled" without a Redis URL, "up" while connected, otherwise "down".
+export const getRedisStatus = () => {
+  if (!config.redis.url) return "disabled";
+  return getRedisClient() ? "up" : "down";
+};
+
 export const closeRedis = async () => {
   if (!redisClient) return;
   try {
