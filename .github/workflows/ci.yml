@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+# A newer run of the same branch or pull request replaces the one in progress.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -42,12 +47,12 @@ jobs:
       REDIS_URL: redis://localhost:6379
 
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Uses the version from the "packageManager" field in package.json.
-      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: pnpm
@@ -55,4 +60,31 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm format:check
+      # Fails on known high or critical vulnerabilities in production dependencies.
+      - run: pnpm audit --prod --audit-level high
       - run: pnpm test
+
+  # Builds the image, starts the compose stack and checks it from the outside.
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Create a throwaway environment file
+        run: echo "JWT_SECRET=$(openssl rand -hex 32)" > .env
+
+      - name: Build and start the stack
+        run: docker compose up -d --build
+
+      - name: Wait for /readyz and check register and login
+        run: scripts/smoke-test.sh http://127.0.0.1:5000
+
+      - name: Show the logs when something failed
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Stop the stack
+        if: always()
+        run: docker compose down -v
