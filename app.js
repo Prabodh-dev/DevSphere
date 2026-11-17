@@ -1,10 +1,10 @@
 import express from "express";
-import cors from "cors";
 import helmet from "helmet";
 import mongoose from "mongoose";
 import { notFoundHandler, errorHandler } from "./middlewares/errorHandler.js";
 import { limiters } from "./middlewares/rateLimit.js";
-import { getCorsOrigins, getTrustProxy } from "./config/env.js";
+import { getTrustProxy } from "./config/env.js";
+import { corsMiddleware } from "./middlewares/cors.js";
 
 import v1Routes from "./routes/index.js";
 
@@ -15,7 +15,7 @@ const app = express();
 app.set("trust proxy", getTrustProxy());
 
 app.use(helmet());
-app.use(cors({ origin: getCorsOrigins().length ? getCorsOrigins() : false }));
+app.use(corsMiddleware);
 app.use(express.json({ limit: "256kb" }));
 app.use(express.urlencoded({ extended: false, limit: "256kb" }));
 
