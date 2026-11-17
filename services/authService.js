@@ -9,6 +9,7 @@ import {
   notFound,
   unauthorized,
 } from "../utils/httpError.js";
+import { countRefresh } from "../utils/metrics.js";
 import { signAccessToken } from "../utils/tokens.js";
 import {
   findFamilyByToken,
@@ -65,7 +66,10 @@ export async function login({ email: rawEmail, password }, client) {
 
 // Exchanges a refresh token for a new access token and a rotated refresh token.
 export async function refresh(rawToken, client, io) {
-  if (!rawToken) throw unauthorized("Refresh token required");
+  if (!rawToken) {
+    countRefresh("rejected");
+    throw unauthorized("Refresh token required");
+  }
 
   const result = await rotateSession(rawToken, client, io);
   return {

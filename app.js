@@ -8,6 +8,8 @@ import { corsMiddleware } from "./middlewares/cors.js";
 import { setRouteBase } from "./utils/routePattern.js";
 import requestId from "./middlewares/requestId.js";
 import requestLogger from "./middlewares/requestLogger.js";
+import httpMetrics from "./middlewares/httpMetrics.js";
+import metricsRoutes from "./routes/metrics.js";
 
 import v1Routes from "./routes/index.js";
 import docsRoutes from "./routes/docs.js";
@@ -20,6 +22,7 @@ app.set("trust proxy", config.trustProxy);
 
 app.use(requestId);
 app.use(requestLogger);
+app.use(httpMetrics);
 app.use(helmet());
 app.use(corsMiddleware);
 app.use(express.json({ limit: "256kb" }));
@@ -31,6 +34,8 @@ app.get("/healthz", (req, res) => {
     .status(dbUp ? 200 : 503)
     .json({ status: dbUp ? "ok" : "unavailable", db: dbUp ? "up" : "down" });
 });
+
+app.use(metricsRoutes);
 
 app.use("/api", limiters.general);
 

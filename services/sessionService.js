@@ -1,10 +1,11 @@
 import mongoose from "mongoose";
 import Session from "../models/Session.js";
 import User from "../models/User.js";
-import { accountBlocked, unauthorized } from "../utils/httpError.js";
+import { HttpError, accountBlocked, unauthorized } from "../utils/httpError.js";
 import { config } from "../config/index.js";
 import { newRefreshToken, hashToken } from "../utils/tokens.js";
 import { sessionRoom } from "../utils/rooms.js";
+import { countRefresh } from "../utils/metrics.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -90,15 +91,31 @@ const invalid = () => unauthorized("Invalid refresh token");
 // away a while ago, someone else may hold a copy, so the login is ended.
 async function handleUsedToken(session, io) {
   const rotatedAgo = Date.now() - session.revokedAt.getTime();
+  const error = invalid();
   if (session.replacedBy && rotatedAgo > REUSE_GRACE_MS) {
     await revokeFamily(session.familyId, io);
+    error.reuseDetected = true;
   }
-  throw invalid();
+  throw error;
 }
 
 // Exchanges a refresh token for a new one in the same login. Returns the new
-// refresh token, the login id and the user.
+// refresh token, the login id and the user. Every outcome is counted.
 export async function rotateSession(rawToken, client, io) {
+  try {
+    const result = await performRotation(rawToken, client, io);
+    countRefresh("rotated");
+    return result;
+  } catch (err) {
+    // Only refusals count; a failing database is not a refresh outcome.
+    if (err instanceof HttpError) {
+      countRefresh(err.reuseDetected ? "reuse_detected" : "rejected");
+    }
+    throw err;
+  }
+}
+
+async function performRotation(rawToken, client, io) {
   const tokenHash = hashToken(rawToken);
   const session = await Session.findOne({ tokenHash });
   if (!session) throw invalid();

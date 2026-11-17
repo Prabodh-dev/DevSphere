@@ -14,6 +14,7 @@ import {
 import { verifyAccessToken } from "./utils/tokens.js";
 import { errorBody } from "./utils/apiError.js";
 import { logger } from "./utils/logger.js";
+import { socketConnections, socketEvents } from "./utils/metrics.js";
 import { isSessionActive } from "./services/sessionService.js";
 import {
   chatIdPayload,
@@ -123,9 +124,11 @@ export const setupSocketIO = (server, options = {}) => {
     // Every log line of this connection carries its id and the verified user.
     const log = logger.child({ socketId: socket.id, userId });
     log.info("socket connected");
-    socket.on("disconnect", (reason) =>
-      log.info({ reason }, "socket disconnected")
-    );
+    socketConnections.inc();
+    socket.on("disconnect", (reason) => {
+      socketConnections.dec();
+      log.info({ reason }, "socket disconnected");
+    });
 
     // Personal room, so events can be addressed to a user, and a room for the
     // login so it can be closed when the login ends.
@@ -171,6 +174,7 @@ export const setupSocketIO = (server, options = {}) => {
     // client and logged, instead of becoming an unhandled rejection.
     const on = (event, handler) => {
       socket.on(event, async (...args) => {
+        socketEvents.inc({ event });
         try {
           await handler(...args);
         } catch (err) {
