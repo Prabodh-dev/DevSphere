@@ -41,7 +41,7 @@ describe("CORS", () => {
 
   it("never answers with a wildcard", async () => {
     const res = await request(app)
-      .options("/api/auth/login")
+      .options("/api/v1/auth/login")
       .set("Origin", "https://app.example.test")
       .set("Access-Control-Request-Method", "POST");
     expect(res.headers["access-control-allow-origin"]).not.toBe("*");
@@ -51,7 +51,7 @@ describe("CORS", () => {
 describe("request size", () => {
   it("rejects very large JSON bodies", async () => {
     const res = await request(app)
-      .post("/api/snippets/highlight")
+      .post("/api/v1/snippets/highlight")
       .send({ code: "a".repeat(400 * 1024) });
     expect(res.status).toBe(413);
     expect(res.body).toEqual({ message: "Request body too large" });
@@ -59,7 +59,7 @@ describe("request size", () => {
 
   it("caps the size of snippets that are highlighted", async () => {
     const res = await request(app)
-      .post("/api/snippets/highlight")
+      .post("/api/v1/snippets/highlight")
       .send({ code: "a".repeat(20001) });
     expect(res.status).toBe(400);
   });
@@ -69,7 +69,7 @@ describe("rate limits", () => {
   it("limits login and register attempts", async () => {
     const attempt = () =>
       request(app)
-        .post("/api/auth/login")
+        .post("/api/v1/auth/login")
         .send({ email: "nobody@example.test", password: "whatever-1" });
 
     const statuses = [];
@@ -88,7 +88,7 @@ describe("rate limits", () => {
 
     // Registration shares the same strict limiter.
     const reg = await request(app)
-      .post("/api/auth/register")
+      .post("/api/v1/auth/register")
       .send({ username: "x", email: "x", password: "x" });
     expect(reg.status).toBe(429);
   });
@@ -96,7 +96,7 @@ describe("rate limits", () => {
   it("limits the public highlighter", async () => {
     const call = () =>
       request(app)
-        .post("/api/snippets/highlight")
+        .post("/api/v1/snippets/highlight")
         .send({ code: "let a = 1;", language: "javascript" });
 
     const statuses = [];

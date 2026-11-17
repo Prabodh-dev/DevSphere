@@ -23,7 +23,7 @@ describe("app basics", () => {
   });
 
   it("returns a JSON 404 for unknown routes", async () => {
-    const res = await request(app).get("/api/does-not-exist");
+    const res = await request(app).get("/api/v1/does-not-exist");
     expect(res.status).toBe(404);
     expect(res.headers["content-type"]).toMatch(/json/);
     expect(res.body).toEqual({ message: "Route not found" });
@@ -31,7 +31,7 @@ describe("app basics", () => {
 
   it("returns a clean 400 for a malformed JSON body", async () => {
     const res = await request(app)
-      .post("/api/auth/login")
+      .post("/api/v1/auth/login")
       .set("Content-Type", "application/json")
       .send('{"email": ');
     expect(res.status).toBe(400);

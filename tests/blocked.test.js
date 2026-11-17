@@ -15,7 +15,7 @@ describe("blocked accounts", () => {
     await User.updateOne({ _id: user.id }, { isBlocked: true });
 
     const res = await request(app)
-      .post("/api/auth/login")
+      .post("/api/v1/auth/login")
       .send({ email: user.email, password: user.password });
     expect(res.status).toBe(403);
     expect(res.body.token).toBeUndefined();
@@ -26,7 +26,7 @@ describe("blocked accounts", () => {
     await User.updateOne({ _id: user.id }, { isBlocked: true });
 
     const res = await request(app)
-      .post("/api/auth/login")
+      .post("/api/v1/auth/login")
       .send({ email: user.email, password: "not-the-password-1" });
     expect(res.status).toBe(401);
   });
@@ -35,7 +35,7 @@ describe("blocked accounts", () => {
     const user = await createUser();
     await User.updateOne({ _id: user.id }, { isBlocked: true });
 
-    const res = await request(app).get("/api/chat").set(bearer(user.token));
+    const res = await request(app).get("/api/v1/chat").set(bearer(user.token));
     expect(res.status).toBe(403);
   });
 
@@ -44,7 +44,7 @@ describe("blocked accounts", () => {
     await User.updateOne({ _id: user.id }, { isBlocked: true });
     await User.updateOne({ _id: user.id }, { isBlocked: false });
 
-    const res = await request(app).get("/api/chat").set(bearer(user.token));
+    const res = await request(app).get("/api/v1/chat").set(bearer(user.token));
     expect(res.status).toBe(200);
   });
 });
@@ -54,10 +54,10 @@ describe("login errors", () => {
     const user = await createUser();
 
     const unknown = await request(app)
-      .post("/api/auth/login")
+      .post("/api/v1/auth/login")
       .send({ email: "nobody@example.test", password: "password-for-tests-1" });
     const wrong = await request(app)
-      .post("/api/auth/login")
+      .post("/api/v1/auth/login")
       .send({ email: user.email, password: "a-different-password-1" });
 
     expect(unknown.status).toBe(401);

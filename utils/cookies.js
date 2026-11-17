@@ -7,7 +7,7 @@ const options = () => ({
   httpOnly: true,
   sameSite: "strict",
   secure: isCookieSecure(),
-  path: "/api/auth",
+  path: "/api/v1/auth",
 });
 
 export const setRefreshCookie = (res, token) => {

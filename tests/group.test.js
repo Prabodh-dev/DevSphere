@@ -28,7 +28,7 @@ const call = (method, path, user, body) =>
 
 describe("POST /api/group/create", () => {
   it("creates a group with the creator as admin and member", async () => {
-    const res = await call("post", "/api/group/create", alice, {
+    const res = await call("post", "/api/v1/group/create", alice, {
       chatName: "team",
       members: [bob.id, carol.id],
     });
@@ -39,7 +39,7 @@ describe("POST /api/group/create", () => {
   });
 
   it("does not add the creator or duplicates twice", async () => {
-    const res = await call("post", "/api/group/create", alice, {
+    const res = await call("post", "/api/v1/group/create", alice, {
       chatName: "team",
       members: [bob.id, bob.id, carol.id, alice.id],
     });
@@ -57,13 +57,13 @@ describe("POST /api/group/create", () => {
     ["invalid ids", { chatName: "x", members: ["a", "b"] }],
   ])("returns 400 for %s", async (_label, body) => {
     if (body.members?.[0] === "PLACEHOLDER") body.members = [bob.id];
-    const res = await call("post", "/api/group/create", alice, body);
+    const res = await call("post", "/api/v1/group/create", alice, body);
     expect(res.status).toBe(400);
     expect(Object.keys(res.body)).toEqual(["message"]);
   });
 
   it("returns 400 when a member does not exist", async () => {
-    const res = await call("post", "/api/group/create", alice, {
+    const res = await call("post", "/api/v1/group/create", alice, {
       chatName: "x",
       members: [bob.id, missingId()],
     });
@@ -84,7 +84,7 @@ describe("group management", () => {
   });
 
   it("lets an admin add a member", async () => {
-    const res = await call("patch", "/api/group/add", alice, {
+    const res = await call("patch", "/api/v1/group/add", alice, {
       chatId: group.id,
       userId: dave.id,
     });
@@ -94,7 +94,7 @@ describe("group management", () => {
   });
 
   it("refuses non-admins", async () => {
-    const res = await call("patch", "/api/group/add", bob, {
+    const res = await call("patch", "/api/v1/group/add", bob, {
       chatId: group.id,
       userId: dave.id,
     });
@@ -103,9 +103,9 @@ describe("group management", () => {
 
   it("returns 404 for an unknown group instead of a server error", async () => {
     for (const [path, body] of [
-      ["/api/group/add", { userId: dave.id }],
-      ["/api/group/remove", { userId: bob.id }],
-      ["/api/group/rename", { newName: "x" }],
+      ["/api/v1/group/add", { userId: dave.id }],
+      ["/api/v1/group/remove", { userId: bob.id }],
+      ["/api/v1/group/rename", { newName: "x" }],
     ]) {
       const res = await call("patch", path, alice, {
         chatId: missingId(),
@@ -116,13 +116,13 @@ describe("group management", () => {
   });
 
   it("returns 404 when the user to add does not exist and 400 for bad ids", async () => {
-    const unknown = await call("patch", "/api/group/add", alice, {
+    const unknown = await call("patch", "/api/v1/group/add", alice, {
       chatId: group.id,
       userId: missingId(),
     });
     expect(unknown.status).toBe(404);
 
-    const bad = await call("patch", "/api/group/add", alice, {
+    const bad = await call("patch", "/api/v1/group/add", alice, {
       chatId: "bad",
       userId: dave.id,
     });
@@ -130,7 +130,7 @@ describe("group management", () => {
   });
 
   it("returns 400 when the user is already a member", async () => {
-    const res = await call("patch", "/api/group/add", alice, {
+    const res = await call("patch", "/api/v1/group/add", alice, {
       chatId: group.id,
       userId: bob.id,
     });
@@ -138,7 +138,7 @@ describe("group management", () => {
   });
 
   it("removes a member", async () => {
-    const res = await call("patch", "/api/group/remove", alice, {
+    const res = await call("patch", "/api/v1/group/remove", alice, {
       chatId: group.id,
       userId: bob.id,
     });
@@ -148,7 +148,7 @@ describe("group management", () => {
   });
 
   it("will not remove the only admin", async () => {
-    const res = await call("patch", "/api/group/remove", alice, {
+    const res = await call("patch", "/api/v1/group/remove", alice, {
       chatId: group.id,
       userId: alice.id,
     });
@@ -159,7 +159,7 @@ describe("group management", () => {
 
   it("allows removing an admin when another admin remains", async () => {
     await Chat.findByIdAndUpdate(group.id, { $push: { admins: bob.id } });
-    const res = await call("patch", "/api/group/remove", alice, {
+    const res = await call("patch", "/api/v1/group/remove", alice, {
       chatId: group.id,
       userId: alice.id,
     });
@@ -167,14 +167,14 @@ describe("group management", () => {
   });
 
   it("renames the group and validates the name", async () => {
-    const ok = await call("patch", "/api/group/rename", alice, {
+    const ok = await call("patch", "/api/v1/group/rename", alice, {
       chatId: group.id,
       newName: "renamed",
     });
     expect(ok.status).toBe(200);
     expect((await Chat.findById(group.id)).chatName).toBe("renamed");
 
-    const bad = await call("patch", "/api/group/rename", alice, {
+    const bad = await call("patch", "/api/v1/group/rename", alice, {
       chatId: group.id,
       newName: "",
     });

@@ -35,7 +35,8 @@ beforeEach(async () => {
   alice = await createUser();
 });
 
-const save = () => request(app).post("/api/profile").set(bearer(alice.token));
+const save = () =>
+  request(app).post("/api/v1/profile").set(bearer(alice.token));
 
 describe("profile routes", () => {
   it("registers POST / only once", () => {
@@ -100,13 +101,13 @@ describe("profile routes", () => {
 
   it("returns my profile, or 404 before one exists", async () => {
     const before = await request(app)
-      .get("/api/profile/me")
+      .get("/api/v1/profile/me")
       .set(bearer(alice.token));
     expect(before.status).toBe(404);
 
     await save().send({ bio: "hi" });
     const after = await request(app)
-      .get("/api/profile/me")
+      .get("/api/v1/profile/me")
       .set(bearer(alice.token));
     expect(after.status).toBe(200);
     expect(after.body.bio).toBe("hi");
@@ -115,15 +116,15 @@ describe("profile routes", () => {
   it("returns a profile by user id with 400/404 for bad or missing ids", async () => {
     await save().send({ bio: "hi" });
 
-    const ok = await request(app).get(`/api/profile/${alice.id}`);
+    const ok = await request(app).get(`/api/v1/profile/${alice.id}`);
     expect(ok.status).toBe(200);
     expect(ok.body.user.username).toBe(alice.username);
 
-    const bad = await request(app).get("/api/profile/not-an-id");
+    const bad = await request(app).get("/api/v1/profile/not-an-id");
     expect(bad.status).toBe(400);
 
     const missing = await request(app).get(
-      `/api/profile/${new mongoose.Types.ObjectId()}`
+      `/api/v1/profile/${new mongoose.Types.ObjectId()}`
     );
     expect(missing.status).toBe(404);
   });
@@ -161,7 +162,7 @@ describe("single source of truth", () => {
       { tags: ["go", "rust"], avatarKey: "avatars/other.png" }
     );
 
-    const res = await request(app).get(`/api/profile/${alice.id}`);
+    const res = await request(app).get(`/api/v1/profile/${alice.id}`);
     expect(res.body.tags).toEqual(["go", "rust"]);
     expect(res.body.avatar).toBe(
       "https://signed.example.test/avatars/other.png"
@@ -174,21 +175,21 @@ describe("single source of truth", () => {
     await save().send({ bio: "hi", tags: ["node"] });
 
     await request(app)
-      .patch("/api/users/me/tags")
+      .patch("/api/v1/users/me/tags")
       .set(bearer(alice.token))
       .send({ tags: ["deno"] });
 
     const mine = await request(app)
-      .get("/api/profile/me")
+      .get("/api/v1/profile/me")
       .set(bearer(alice.token));
     expect(mine.body.tags).toEqual(["deno"]);
 
     const found = await request(app)
-      .get("/api/users?tag=deno")
+      .get("/api/v1/users?tag=deno")
       .set(bearer(alice.token));
     expect(found.body.map((u) => u.username)).toEqual([alice.username]);
     const old = await request(app)
-      .get("/api/users?tag=node")
+      .get("/api/v1/users?tag=node")
       .set(bearer(alice.token));
     expect(old.body).toEqual([]);
   });

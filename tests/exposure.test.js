@@ -44,7 +44,7 @@ const publicKeys = ["_id", "avatar", "username"];
 describe("chat responses", () => {
   it("only show public member fields", async () => {
     await Chat.create({ members: [alice.id, bob.id] });
-    const res = await as(alice).get("/api/chat");
+    const res = await as(alice).get("/api/v1/chat");
 
     expect(res.status).toBe(200);
     expect(res.body[0].members).toHaveLength(2);
@@ -56,7 +56,7 @@ describe("chat responses", () => {
 
   it("do the same when a group is created", async () => {
     const res = await as(alice)
-      .post("/api/group/create")
+      .post("/api/v1/group/create")
       .send({ chatName: "team", members: [bob.id, carol.id] });
 
     expect(res.status).toBe(201);
@@ -69,7 +69,7 @@ describe("chat responses", () => {
   it("send only basic chat details with a new message", async () => {
     const chat = await Chat.create({ members: [alice.id, bob.id] });
     const res = await as(alice)
-      .post("/api/chat/message")
+      .post("/api/v1/chat/message")
       .send({ chatId: chat.id, text: "hello" });
 
     expect(res.status).toBe(201);
@@ -80,7 +80,7 @@ describe("chat responses", () => {
 
 describe("server side notifications", () => {
   it("are created when someone is followed and pushed to their room", async () => {
-    await as(alice).post(`/api/users/${bob.id}/follow`);
+    await as(alice).post(`/api/v1/users/${bob.id}/follow`);
 
     const stored = await Notification.find({ user: bob.id });
     expect(stored).toHaveLength(1);
@@ -102,23 +102,23 @@ describe("server side notifications", () => {
   });
 
   it("are listed for the recipient with public sender details", async () => {
-    await as(alice).post(`/api/users/${bob.id}/follow`);
-    const res = await as(bob).get("/api/notifications");
+    await as(alice).post(`/api/v1/users/${bob.id}/follow`);
+    const res = await as(bob).get("/api/v1/notifications");
 
     expect(res.body).toHaveLength(1);
     expect(Object.keys(res.body[0].fromUser).sort()).toEqual(publicKeys);
-    expect((await as(alice).get("/api/notifications")).body).toHaveLength(0);
+    expect((await as(alice).get("/api/v1/notifications")).body).toHaveLength(0);
   });
 
   it("are created for members added to a group", async () => {
     const created = await as(alice)
-      .post("/api/group/create")
+      .post("/api/v1/group/create")
       .send({ chatName: "team", members: [bob.id, carol.id] });
     expect(await Notification.countDocuments({ type: "group" })).toBe(2);
 
     const dave = await createUser();
     await as(alice)
-      .patch("/api/group/add")
+      .patch("/api/v1/group/add")
       .send({ chatId: created.body._id, userId: dave.id });
     expect(await Notification.countDocuments({ user: dave.id })).toBe(1);
     expect(io.to).toHaveBeenCalledWith(`user:${dave.id}`);
@@ -126,7 +126,7 @@ describe("server side notifications", () => {
 
   it("still work when no socket server is attached", async () => {
     app.set("io", undefined);
-    const res = await as(alice).post(`/api/users/${bob.id}/follow`);
+    const res = await as(alice).post(`/api/v1/users/${bob.id}/follow`);
     expect(res.status).toBe(200);
     expect(await Notification.countDocuments({ user: bob.id })).toBe(1);
   });

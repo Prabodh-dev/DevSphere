@@ -32,7 +32,7 @@ describe("socket access tokens", () => {
   });
 
   it("are refused after the login was revoked", async () => {
-    await request(app).post("/api/auth/logout-all").set(bearer(user.token));
+    await request(app).post("/api/v1/auth/logout-all").set(bearer(user.token));
     const { connected } = await server.tryConnect({ token: user.token });
     expect(connected).toBe(false);
   });
@@ -54,7 +54,7 @@ describe("socket access tokens", () => {
 
     // The client refreshes and reconnects with the new access token.
     const refreshed = await request(app)
-      .post("/api/auth/refresh")
+      .post("/api/v1/auth/refresh")
       .set("Origin", ORIGIN)
       .set("Cookie", login.cookie)
       .send();
@@ -81,7 +81,7 @@ describe("ending a login", () => {
 
     const closed = once(mine, "disconnect");
     const res = await request(app)
-      .post("/api/auth/logout")
+      .post("/api/v1/auth/logout")
       .set("Origin", ORIGIN)
       .set("Cookie", user.cookie);
     expect(res.status).toBe(200);
@@ -97,7 +97,7 @@ describe("ending a login", () => {
     const b = await server.client({ token: other.token });
 
     const closed = Promise.all([once(a, "disconnect"), once(b, "disconnect")]);
-    await request(app).post("/api/auth/logout-all").set(bearer(other.token));
+    await request(app).post("/api/v1/auth/logout-all").set(bearer(other.token));
     await closed;
   });
 });
