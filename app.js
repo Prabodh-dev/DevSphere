@@ -6,17 +6,7 @@ import { notFoundHandler, errorHandler } from "./middlewares/errorHandler.js";
 import { limiters } from "./middlewares/rateLimit.js";
 import { getCorsOrigins, getTrustProxy } from "./config/env.js";
 
-import authRoutes from "./routes/authRoutes.js";
-import profileRoutes from "./routes/profileRoutes.js";
-import userRoutes from "./routes/userRoutes.js";
-import chatRoutes from "./routes/chatRoutes.js";
-import groupRoutes from "./routes/groupRoutes.js";
-import statusRoutes from "./routes/statusRoutes.js";
-import snippetRoutes from "./routes/snippetRoutes.js";
-import liveCodeRoutes from "./routes/liveCodeRoutes.js";
-import notificationRoutes from "./routes/notificationRoutes.js";
-import adminRoutes from "./routes/adminRoutes.js";
-import reportRoutes from "./routes/reportRoutes.js";
+import v1Routes from "./routes/index.js";
 
 const app = express();
 
@@ -38,17 +28,7 @@ app.get("/healthz", (req, res) => {
 
 app.use("/api", limiters.general);
 
-app.use("/api/auth", authRoutes);
-app.use("/api/profile", profileRoutes);
-app.use("/api/users", userRoutes);
-app.use("/api/chat", chatRoutes);
-app.use("/api/group", groupRoutes);
-app.use("/api/status", statusRoutes);
-app.use("/api/snippets", snippetRoutes);
-app.use("/api/live-code", liveCodeRoutes);
-app.use("/api/notifications", notificationRoutes);
-app.use("/api/admin", adminRoutes);
-app.use("/api/report", reportRoutes);
+app.use("/api/v1", v1Routes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

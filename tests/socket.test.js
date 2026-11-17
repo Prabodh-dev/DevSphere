@@ -97,7 +97,7 @@ describe("handshake", () => {
     const closed = once(target, "disconnect");
 
     const res = await request(app)
-      .patch(`/api/admin/block/${bob.id}`)
+      .patch(`/api/v1/admin/block/${bob.id}`)
       .set(bearer(admin.token));
     expect(res.status).toBe(200);
     await closed;
@@ -214,7 +214,7 @@ describe("chat events", () => {
     await sleep(150);
 
     const removed = await request(app)
-      .patch("/api/group/remove")
+      .patch("/api/v1/group/remove")
       .set(bearer(alice.token))
       .send({ chatId: group.id, userId: carol.id });
     expect(removed.status).toBe(200);
@@ -245,7 +245,7 @@ describe("notifications", () => {
     ];
 
     await request(app)
-      .post(`/api/users/${bob.id}/follow`)
+      .post(`/api/v1/users/${bob.id}/follow`)
       .set(bearer(alice.token));
 
     expect(await received).toMatchObject({ type: "follow" });
@@ -261,7 +261,7 @@ describe("notifications", () => {
     ]);
 
     await request(app)
-      .post(`/api/users/${bob.id}/follow`)
+      .post(`/api/v1/users/${bob.id}/follow`)
       .set(bearer(alice.token));
     const [one, two] = await both;
     expect(one.type).toBe("follow");

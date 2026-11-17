@@ -11,7 +11,7 @@ const VISIBLE_FOR_MS = 24 * 60 * 60 * 1000;
 const RECORD_GRACE_MS = 60 * 60 * 1000;
 
 /**
- * POST /api/status
+ * POST /api/v1/status
  * Create a new status (text, image, or video)
  */
 export const postStatus = async (req, res) => {
@@ -48,7 +48,7 @@ export const postStatus = async (req, res) => {
 };
 
 /**
- * GET /api/status/feed
+ * GET /api/v1/status/feed
  * Fetch all active statuses from followed users
  */
 export const getStatusFeed = async (req, res) => {

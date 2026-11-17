@@ -17,7 +17,7 @@ beforeEach(async () => {
 
 const register = (overrides) =>
   request(app)
-    .post("/api/auth/register")
+    .post("/api/v1/auth/register")
     .send({
       username: "newuser",
       email: "newuser@example.test",
@@ -61,7 +61,7 @@ describe("registration rules", () => {
 
   it("rejects bodies that are not objects", async () => {
     const res = await request(app)
-      .post("/api/auth/register")
+      .post("/api/v1/auth/register")
       .send(["not", "an", "object"]);
     expect(res.status).toBe(400);
   });
@@ -69,7 +69,7 @@ describe("registration rules", () => {
 
 describe("profile fields", () => {
   const save = (body) =>
-    request(app).post("/api/profile").set(bearer(alice.token)).send(body);
+    request(app).post("/api/v1/profile").set(bearer(alice.token)).send(body);
 
   it("accepts http(s) links", async () => {
     const res = await save({
@@ -102,7 +102,7 @@ describe("other field limits", () => {
     const others = [await createUser(), await createUser()];
     const create = (body) =>
       request(app)
-        .post("/api/group/create")
+        .post("/api/v1/group/create")
         .set(bearer(alice.token))
         .send(body);
 
@@ -129,7 +129,7 @@ describe("other field limits", () => {
 
   it("limits tag updates", async () => {
     const res = await request(app)
-      .patch("/api/users/me/tags")
+      .patch("/api/v1/users/me/tags")
       .set(bearer(alice.token))
       .send({ tags: Array.from({ length: 21 }, (_, i) => `t${i}`) });
     expect(res.status).toBe(400);

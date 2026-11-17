@@ -29,17 +29,17 @@ beforeEach(async () => {
 
 const refresh = (cookie) =>
   request(app)
-    .post("/api/auth/refresh")
+    .post("/api/v1/auth/refresh")
     .set("Origin", ORIGIN)
     .set("Cookie", cookie)
     .send();
 
 const sidOf = (login) => jwt.decode(login.token).sid;
 
-describe("POST /api/auth/logout", () => {
+describe("POST /api/v1/auth/logout", () => {
   it("revokes the login and clears the cookie", async () => {
     const res = await request(app)
-      .post("/api/auth/logout")
+      .post("/api/v1/auth/logout")
       .set("Origin", ORIGIN)
       .set("Cookie", phone.cookie);
     expect(res.status).toBe(200);
@@ -51,7 +51,9 @@ describe("POST /api/auth/logout", () => {
 
     expect((await refresh(phone.cookie)).status).toBe(401);
     // The access token of that login stops working too.
-    const chats = await request(app).get("/api/chat").set(bearer(phone.token));
+    const chats = await request(app)
+      .get("/api/v1/chat")
+      .set(bearer(phone.token));
     expect(chats.status).toBe(401);
     // Other logins are untouched.
     expect((await refresh(laptop.cookie)).status).toBe(200);
@@ -59,31 +61,31 @@ describe("POST /api/auth/logout", () => {
 
   it("works without a cookie and checks the origin", async () => {
     const none = await request(app)
-      .post("/api/auth/logout")
+      .post("/api/v1/auth/logout")
       .set("Origin", ORIGIN);
     expect(none.status).toBe(200);
 
     const wrong = await request(app)
-      .post("/api/auth/logout")
+      .post("/api/v1/auth/logout")
       .set("Origin", "https://evil.example.test")
       .set("Cookie", phone.cookie);
     expect(wrong.status).toBe(403);
     expect((await refresh(phone.cookie)).status).toBe(200);
 
     const missing = await request(app)
-      .post("/api/auth/logout")
+      .post("/api/v1/auth/logout")
       .set("Cookie", laptop.cookie);
     expect(missing.status).toBe(403);
   });
 });
 
-describe("POST /api/auth/logout-all", () => {
+describe("POST /api/v1/auth/logout-all", () => {
   it("revokes every login of the user", async () => {
     const other = await createUser();
     const otherLogin = await loginAs(other);
 
     const res = await request(app)
-      .post("/api/auth/logout-all")
+      .post("/api/v1/auth/logout-all")
       .set(bearer(phone.token));
     expect(res.status).toBe(200);
 
@@ -97,14 +99,16 @@ describe("POST /api/auth/logout-all", () => {
   });
 
   it("needs a valid access token", async () => {
-    expect((await request(app).post("/api/auth/logout-all")).status).toBe(401);
+    expect((await request(app).post("/api/v1/auth/logout-all")).status).toBe(
+      401
+    );
   });
 });
 
-describe("GET /api/auth/sessions", () => {
+describe("GET /api/v1/auth/sessions", () => {
   it("lists active logins and marks the current one", async () => {
     const res = await request(app)
-      .get("/api/auth/sessions")
+      .get("/api/v1/auth/sessions")
       .set(bearer(phone.token));
     expect(res.status).toBe(200);
     // Registration, phone and laptop.
@@ -131,7 +135,7 @@ describe("GET /api/auth/sessions", () => {
   it("keeps one entry per login across rotations and never exposes tokens", async () => {
     const rotated = await refresh(phone.cookie);
     const res = await request(app)
-      .get("/api/auth/sessions")
+      .get("/api/v1/auth/sessions")
       .set(bearer(rotated.body.token));
     expect(res.body).toHaveLength(3);
 
@@ -148,17 +152,17 @@ describe("GET /api/auth/sessions", () => {
     );
 
     const res = await request(app)
-      .get("/api/auth/sessions")
+      .get("/api/v1/auth/sessions")
       .set(bearer(phone.token));
     expect(res.body.map((s) => s.id)).not.toContain(sidOf(laptop));
     expect(res.body).toHaveLength(2);
   });
 });
 
-describe("DELETE /api/auth/sessions/:id", () => {
+describe("DELETE /api/v1/auth/sessions/:id", () => {
   it("revokes one login", async () => {
     const res = await request(app)
-      .delete(`/api/auth/sessions/${sidOf(laptop)}`)
+      .delete(`/api/v1/auth/sessions/${sidOf(laptop)}`)
       .set(bearer(phone.token));
     expect(res.status).toBe(200);
 
@@ -168,7 +172,7 @@ describe("DELETE /api/auth/sessions/:id", () => {
 
   it("can revoke the current login", async () => {
     const res = await request(app)
-      .delete(`/api/auth/sessions/${sidOf(phone)}`)
+      .delete(`/api/v1/auth/sessions/${sidOf(phone)}`)
       .set(bearer(phone.token));
     expect(res.status).toBe(200);
     expect((await refresh(phone.cookie)).status).toBe(401);
@@ -179,27 +183,27 @@ describe("DELETE /api/auth/sessions/:id", () => {
     const otherLogin = await loginAs(other);
 
     const foreign = await request(app)
-      .delete(`/api/auth/sessions/${sidOf(otherLogin)}`)
+      .delete(`/api/v1/auth/sessions/${sidOf(otherLogin)}`)
       .set(bearer(phone.token));
     expect(foreign.status).toBe(404);
     expect((await refresh(otherLogin.cookie)).status).toBe(200);
 
     const unknown = await request(app)
-      .delete("/api/auth/sessions/507f1f77bcf86cd799439011")
+      .delete("/api/v1/auth/sessions/507f1f77bcf86cd799439011")
       .set(bearer(phone.token));
     expect(unknown.status).toBe(404);
 
     const bad = await request(app)
-      .delete("/api/auth/sessions/not-an-id")
+      .delete("/api/v1/auth/sessions/not-an-id")
       .set(bearer(phone.token));
     expect(bad.status).toBe(400);
   });
 });
 
-describe("POST /api/auth/change-password", () => {
+describe("POST /api/v1/auth/change-password", () => {
   const change = (login, body) =>
     request(app)
-      .post("/api/auth/change-password")
+      .post("/api/v1/auth/change-password")
       .set(bearer(login.token))
       .send(body);
 
@@ -214,15 +218,17 @@ describe("POST /api/auth/change-password", () => {
     expect((await refresh(phone.cookie)).status).toBe(200);
     expect((await refresh(laptop.cookie)).status).toBe(401);
     expect((await refresh(user.cookie)).status).toBe(401);
-    const chats = await request(app).get("/api/chat").set(bearer(laptop.token));
+    const chats = await request(app)
+      .get("/api/v1/chat")
+      .set(bearer(laptop.token));
     expect(chats.status).toBe(401);
 
     const oldLogin = await request(app)
-      .post("/api/auth/login")
+      .post("/api/v1/auth/login")
       .send({ email: user.email, password: user.password });
     expect(oldLogin.status).toBe(401);
     const newLogin = await request(app)
-      .post("/api/auth/login")
+      .post("/api/v1/auth/login")
       .send({ email: user.email, password: "a-brand-new-passw0rd" });
     expect(newLogin.status).toBe(200);
   });
@@ -258,7 +264,7 @@ describe("POST /api/auth/change-password", () => {
     expect(same.status).toBe(400);
 
     const anonymous = await request(app)
-      .post("/api/auth/change-password")
+      .post("/api/v1/auth/change-password")
       .send({
         currentPassword: user.password,
         newPassword: "a-brand-new-passw0rd",
@@ -279,7 +285,7 @@ describe("blocking a user", () => {
   it("revokes all of their sessions", async () => {
     const admin = await makeAdmin(await createUser());
     const res = await request(app)
-      .patch(`/api/admin/block/${user.id}`)
+      .patch(`/api/v1/admin/block/${user.id}`)
       .set(bearer(admin.token));
     expect(res.status).toBe(200);
 
@@ -290,7 +296,7 @@ describe("blocking a user", () => {
 
     // After unblocking they still have to sign in again.
     await request(app)
-      .patch(`/api/admin/unblock/${user.id}`)
+      .patch(`/api/v1/admin/unblock/${user.id}`)
       .set(bearer(admin.token));
     expect((await refresh(phone.cookie)).status).toBe(401);
     expect(

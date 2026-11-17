@@ -68,14 +68,14 @@ describe("uploads without configuration", () => {
     blankUploadSettings();
 
     const avatar = await request(app)
-      .post("/api/profile")
+      .post("/api/v1/profile")
       .set(bearer(user.token))
       .attach("avatar", png(), { filename: "a.png", contentType: "image/png" });
     expect(avatar.status).toBe(503);
     expect(avatar.body).toEqual({ message: "File uploads are not configured" });
 
     const status = await request(app)
-      .post("/api/status")
+      .post("/api/v1/status")
       .set(bearer(user.token))
       .field("type", "image")
       .attach("media", png(), { filename: "a.png", contentType: "image/png" });
@@ -87,20 +87,20 @@ describe("uploads without configuration", () => {
     blankUploadSettings();
 
     const profile = await request(app)
-      .post("/api/profile")
+      .post("/api/v1/profile")
       .set(bearer(user.token))
       .send({ bio: "no avatar here" });
     expect(profile.status).toBe(200);
     expect(profile.body.avatar).toBe("");
 
     const text = await request(app)
-      .post("/api/status")
+      .post("/api/v1/status")
       .set(bearer(user.token))
       .send({ type: "text", content: "hello" });
     expect(text.status).toBe(201);
 
     const feed = await request(app)
-      .get("/api/status/feed")
+      .get("/api/v1/status/feed")
       .set(bearer(user.token));
     expect(feed.status).toBe(200);
   });

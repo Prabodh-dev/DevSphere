@@ -12,7 +12,7 @@ export async function createUser(overrides = {}) {
     password: "password-for-tests-1",
     ...overrides,
   };
-  const res = await request(app).post("/api/auth/register").send(body);
+  const res = await request(app).post("/api/v1/auth/register").send(body);
   if (res.status !== 201) {
     throw new Error(
       `createUser failed: ${res.status} ${JSON.stringify(res.body)}`
@@ -53,7 +53,7 @@ export const tokenFromCookie = (pair) =>
 // Logs in and returns the access token and refresh cookie pair.
 export async function loginAs(user, headers = {}) {
   const res = await request(app)
-    .post("/api/auth/login")
+    .post("/api/v1/auth/login")
     .set(headers)
     .send({ email: user.email, password: user.password });
   if (res.status !== 200) {

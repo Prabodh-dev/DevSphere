@@ -5,7 +5,7 @@ import mongoose from "mongoose";
 // The highlighter needs no database, so it can be used to watch the limiter.
 const call = (app, forwardedFor) =>
   request(app)
-    .post("/api/snippets/highlight")
+    .post("/api/v1/snippets/highlight")
     .set("X-Forwarded-For", forwardedFor)
     .send({ code: "let a = 1;" });
 

@@ -50,12 +50,12 @@ const deletes = () =>
 
 const avatar = (buffer, filename = "me.png", contentType = "image/png") =>
   request(app)
-    .post("/api/profile")
+    .post("/api/v1/profile")
     .set(bearer(alice.token))
     .attach("avatar", buffer, { filename, contentType });
 
 const postStatus = (fields, file) => {
-  let req = request(app).post("/api/status").set(bearer(alice.token));
+  let req = request(app).post("/api/v1/status").set(bearer(alice.token));
   for (const [k, v] of Object.entries(fields)) req = req.field(k, v);
   if (file) req = req.attach("media", file.buffer, file);
   return req;
@@ -113,7 +113,7 @@ describe("avatar uploads", () => {
 
   it("rejects more than one file", async () => {
     const res = await request(app)
-      .post("/api/profile")
+      .post("/api/v1/profile")
       .set(bearer(alice.token))
       .attach("avatar", png(), { filename: "a.png", contentType: "image/png" })
       .attach("avatar", png(), { filename: "b.png", contentType: "image/png" });
@@ -122,7 +122,7 @@ describe("avatar uploads", () => {
 
   it("rejects files sent under another field name", async () => {
     const res = await request(app)
-      .post("/api/profile")
+      .post("/api/v1/profile")
       .set(bearer(alice.token))
       .attach("other", png(), { filename: "a.png", contentType: "image/png" });
     expect(res.status).toBe(400);
@@ -166,7 +166,7 @@ describe("status media", () => {
       { buffer: png(), filename: "a.png", contentType: "image/png" }
     );
     const feed = await request(app)
-      .get("/api/status/feed")
+      .get("/api/v1/status/feed")
       .set(bearer(alice.token));
     expect(feed.body.count).toBe(1);
     expect(feed.body.statuses[0].content).toContain("signed.example.test");
@@ -222,7 +222,7 @@ describe("status media", () => {
       { visibleUntil: new Date(Date.now() - 1000) }
     );
     const feed = await request(app)
-      .get("/api/status/feed")
+      .get("/api/v1/status/feed")
       .set(bearer(alice.token));
     expect(feed.body.count).toBe(0);
   });
@@ -235,7 +235,7 @@ describe("status media", () => {
       expiresAt: new Date(Date.now() + 60000),
     });
     const feed = await request(app)
-      .get("/api/status/feed")
+      .get("/api/v1/status/feed")
       .set(bearer(alice.token));
     expect(feed.body.count).toBe(1);
   });
@@ -305,7 +305,7 @@ describe("admin removal of a status", () => {
     });
 
     const res = await request(app)
-      .delete(`/api/admin/remove/status/${status.id}`)
+      .delete(`/api/v1/admin/remove/status/${status.id}`)
       .set(bearer(admin.token));
     expect(res.status).toBe(200);
     expect(deletes().map((d) => d.Key)).toEqual(["status/reported.png"]);

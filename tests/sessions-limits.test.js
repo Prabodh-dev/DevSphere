@@ -17,7 +17,7 @@ describe("refresh rate limit", () => {
   it("limits the refresh endpoint", async () => {
     const attempt = () =>
       request(app)
-        .post("/api/auth/refresh")
+        .post("/api/v1/auth/refresh")
         .set("Origin", ORIGIN)
         .set("Cookie", "refresh_token=nothing-valid");
 

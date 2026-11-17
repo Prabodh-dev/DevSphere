@@ -21,11 +21,11 @@ describe("README", () => {
   it("describes the auth endpoints", () => {
     const readme = read("README.md");
     for (const endpoint of [
-      "/api/auth/refresh",
-      "/api/auth/logout",
-      "/api/auth/logout-all",
-      "/api/auth/sessions",
-      "/api/auth/change-password",
+      "/api/v1/auth/refresh",
+      "/api/v1/auth/logout",
+      "/api/v1/auth/logout-all",
+      "/api/v1/auth/sessions",
+      "/api/v1/auth/change-password",
     ]) {
       expect(readme).toContain(endpoint);
     }

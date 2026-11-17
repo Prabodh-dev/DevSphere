@@ -35,13 +35,13 @@ beforeEach(async () => {
 });
 
 const refresh = (cookie, origin = ORIGIN) => {
-  let req = request(app).post("/api/auth/refresh");
+  let req = request(app).post("/api/v1/auth/refresh");
   if (origin) req = req.set("Origin", origin);
   if (cookie) req = req.set("Cookie", cookie);
   return req.send();
 };
 
-describe("POST /api/auth/refresh", () => {
+describe("POST /api/v1/auth/refresh", () => {
   it("issues a new access token and rotates the refresh token", async () => {
     const res = await refresh(login.cookie);
     expect(res.status).toBe(200);
@@ -59,7 +59,7 @@ describe("POST /api/auth/refresh", () => {
     const sid = jwt.decode(login.token).sid;
     expect(payload.sid).toBe(sid);
     const chats = await request(app)
-      .get("/api/chat")
+      .get("/api/v1/chat")
       .set(bearer(res.body.token));
     expect(chats.status).toBe(200);
   });
@@ -95,7 +95,7 @@ describe("POST /api/auth/refresh", () => {
   it("never reads the token from the request body or headers", async () => {
     const raw = tokenFromCookie(login.cookie);
     const res = await request(app)
-      .post("/api/auth/refresh")
+      .post("/api/v1/auth/refresh")
       .set("Origin", ORIGIN)
       .set("Authorization", `Bearer ${raw}`)
       .send({ refreshToken: raw, refresh_token: raw });
@@ -167,7 +167,7 @@ describe("reuse of a rotated token", () => {
 
     // The access token of that login is dead as well.
     const chats = await request(app)
-      .get("/api/chat")
+      .get("/api/v1/chat")
       .set(bearer(rotated.body.token));
     expect(chats.status).toBe(401);
   });

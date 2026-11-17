@@ -25,10 +25,10 @@ beforeEach(async () => {
 
 const send = (user, chat, body) =>
   request(app)
-    .post("/api/chat/message")
+    .post("/api/v1/chat/message")
     .set(bearer(user.token))
     .send({ chatId: chat.id, ...body });
-const list = (user) => request(app).get("/api/chat").set(bearer(user.token));
+const list = (user) => request(app).get("/api/v1/chat").set(bearer(user.token));
 const tick = () => new Promise((r) => setTimeout(r, 15));
 
 describe("latest message", () => {
@@ -100,7 +100,7 @@ describe("latest message", () => {
     const before = (await Chat.findById(withBob.id)).updatedAt;
 
     const res = await request(app)
-      .delete(`/api/admin/remove/message/${newest.body._id}`)
+      .delete(`/api/v1/admin/remove/message/${newest.body._id}`)
       .set(bearer(admin.token));
     expect(res.status).toBe(200);
 
@@ -111,7 +111,7 @@ describe("latest message", () => {
 
     const only = await Message.findOne({ chat: withBob.id });
     await request(app)
-      .delete(`/api/admin/remove/message/${only.id}`)
+      .delete(`/api/v1/admin/remove/message/${only.id}`)
       .set(bearer(admin.token));
     const empty = (await list(alice)).body.find((c) => c._id === withBob.id);
     expect(empty.latestMessage).toBeNull();

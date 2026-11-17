@@ -46,10 +46,10 @@ const as = (user) => ({
 
 describe("users", () => {
   it("follows and unfollows", async () => {
-    const follow = await as(alice).post(`/api/users/${bob.id}/follow`);
+    const follow = await as(alice).post(`/api/v1/users/${bob.id}/follow`);
     expect(follow.status).toBe(200);
 
-    const followers = await as(alice).get(`/api/users/${bob.id}/followers`);
+    const followers = await as(alice).get(`/api/v1/users/${bob.id}/followers`);
     expect(followers.body.map((u) => u.username)).toEqual([alice.username]);
     // Only public fields are returned.
     expect(Object.keys(followers.body[0]).sort()).toEqual([
@@ -57,38 +57,44 @@ describe("users", () => {
       "avatar",
       "username",
     ]);
-    const following = await as(alice).get(`/api/users/${alice.id}/following`);
+    const following = await as(alice).get(
+      `/api/v1/users/${alice.id}/following`
+    );
     expect(following.body.map((u) => u.username)).toEqual([bob.username]);
 
-    const again = await as(alice).post(`/api/users/${bob.id}/follow`);
+    const again = await as(alice).post(`/api/v1/users/${bob.id}/follow`);
     expect(again.status).toBe(400);
 
-    const unfollow = await as(alice).post(`/api/users/${bob.id}/unfollow`);
+    const unfollow = await as(alice).post(`/api/v1/users/${bob.id}/unfollow`);
     expect(unfollow.status).toBe(200);
     expect(await Follow.countDocuments({ following: bob.id })).toBe(0);
   });
 
   it("returns 400 for invalid ids and 404 for unknown users", async () => {
-    expect((await as(alice).post("/api/users/nope/follow")).status).toBe(400);
-    expect((await as(alice).get("/api/users/nope/followers")).status).toBe(400);
-    expect(
-      (await as(alice).post(`/api/users/${missingId()}/follow`)).status
-    ).toBe(404);
-    expect(
-      (await as(alice).get(`/api/users/${missingId()}/following`)).status
-    ).toBe(404);
-    expect((await as(alice).post(`/api/users/${alice.id}/follow`)).status).toBe(
+    expect((await as(alice).post("/api/v1/users/nope/follow")).status).toBe(
       400
     );
+    expect((await as(alice).get("/api/v1/users/nope/followers")).status).toBe(
+      400
+    );
+    expect(
+      (await as(alice).post(`/api/v1/users/${missingId()}/follow`)).status
+    ).toBe(404);
+    expect(
+      (await as(alice).get(`/api/v1/users/${missingId()}/following`)).status
+    ).toBe(404);
+    expect(
+      (await as(alice).post(`/api/v1/users/${alice.id}/follow`)).status
+    ).toBe(400);
   });
 
   it("updates tags and searches by tag", async () => {
     const res = await as(alice)
-      .patch("/api/users/me/tags")
+      .patch("/api/v1/users/me/tags")
       .send({ tags: ["go"] });
     expect(res.status).toBe(200);
 
-    const found = await as(bob).get("/api/users?tag=go");
+    const found = await as(bob).get("/api/v1/users?tag=go");
     expect(found.body.map((u) => u.username)).toEqual([alice.username]);
     expect(Object.keys(found.body[0]).sort()).toEqual([
       "_id",
@@ -99,22 +105,22 @@ describe("users", () => {
   });
 
   it("validates tags and the search query", async () => {
-    const patch = (body) => as(alice).patch("/api/users/me/tags").send(body);
+    const patch = (body) => as(alice).patch("/api/v1/users/me/tags").send(body);
     expect((await patch({ tags: "go" })).status).toBe(400);
     expect((await patch({ tags: [1, 2] })).status).toBe(400);
-    expect((await as(bob).get("/api/users")).status).toBe(400);
-    expect((await as(bob).get("/api/users?tag=a&tag=b")).status).toBe(400);
+    expect((await as(bob).get("/api/v1/users")).status).toBe(400);
+    expect((await as(bob).get("/api/v1/users?tag=a&tag=b")).status).toBe(400);
   });
 });
 
 describe("status", () => {
-  const post = (user) => as(user).post("/api/status");
+  const post = (user) => as(user).post("/api/v1/status");
 
   it("posts a text status and shows it in the feed", async () => {
     const res = await post(alice).send({ type: "text", content: "hello" });
     expect(res.status).toBe(201);
 
-    const feed = await as(alice).get("/api/status/feed");
+    const feed = await as(alice).get("/api/v1/status/feed");
     expect(feed.body.count).toBe(1);
     expect(feed.body.statuses[0].content).toBe("hello");
   });
@@ -159,7 +165,7 @@ describe("notifications", () => {
       fromUser: bob.id,
     });
 
-    const list = await as(bob).get("/api/notifications");
+    const list = await as(bob).get("/api/v1/notifications");
     expect(list.status).toBe(200);
     expect(list.body).toHaveLength(1);
     expect(list.body[0].type).toBe("follow");
@@ -167,18 +173,18 @@ describe("notifications", () => {
 
   it("cannot be created through the API", async () => {
     const res = await as(alice)
-      .post("/api/notifications")
+      .post("/api/v1/notifications")
       .send({ user: bob.id, type: "follow", fromUser: alice.id });
     expect(res.status).toBe(404);
 
-    const list = await as(bob).get("/api/notifications");
+    const list = await as(bob).get("/api/v1/notifications");
     expect(list.body).toHaveLength(0);
   });
 });
 
 describe("reports", () => {
   it("files a report and validates input", async () => {
-    const report = (body) => as(alice).post("/api/report").send(body);
+    const report = (body) => as(alice).post("/api/v1/report").send(body);
     const ok = await report({
       targetType: "user",
       targetId: bob.id,
@@ -201,17 +207,17 @@ describe("reports", () => {
 describe("snippets", () => {
   it("highlights code and validates the body", async () => {
     const ok = await request(app)
-      .post("/api/snippets/highlight")
+      .post("/api/v1/snippets/highlight")
       .send({ code: "const a = 1;", language: "javascript" });
     expect(ok.status).toBe(200);
     expect(ok.body.highlighted).toContain("hljs-");
 
     const unknown = await request(app)
-      .post("/api/snippets/highlight")
+      .post("/api/v1/snippets/highlight")
       .send({ code: "hello", language: "not-a-language" });
     expect(unknown.status).toBe(200);
 
-    const bad = await request(app).post("/api/snippets/highlight").send({});
+    const bad = await request(app).post("/api/v1/snippets/highlight").send({});
     expect(bad.status).toBe(400);
     expect(Object.keys(bad.body)).toEqual(["message"]);
   });

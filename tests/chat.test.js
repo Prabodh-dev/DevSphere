@@ -24,7 +24,7 @@ beforeEach(async () => {
 
 describe("POST /api/chat/access", () => {
   const access = (user, body) =>
-    request(app).post("/api/chat/access").set(bearer(user.token)).send(body);
+    request(app).post("/api/v1/chat/access").set(bearer(user.token)).send(body);
 
   it("creates a one-to-one chat and returns the same one next time", async () => {
     const first = await access(alice, { userId: bob.id });
@@ -83,9 +83,12 @@ describe("messages", () => {
   });
 
   const send = (user, body) =>
-    request(app).post("/api/chat/message").set(bearer(user.token)).send(body);
+    request(app)
+      .post("/api/v1/chat/message")
+      .set(bearer(user.token))
+      .send(body);
   const list = (user, chatId) =>
-    request(app).get(`/api/chat/message/${chatId}`).set(bearer(user.token));
+    request(app).get(`/api/v1/chat/message/${chatId}`).set(bearer(user.token));
 
   it("lets a member send and read messages", async () => {
     const sent = await send(alice, { chatId: chat.id, text: "hello" });
@@ -147,7 +150,7 @@ describe("GET /api/live-code/:chatId", () => {
   });
 
   const get = (user, chatId) =>
-    request(app).get(`/api/live-code/${chatId}`).set(bearer(user.token));
+    request(app).get(`/api/v1/live-code/${chatId}`).set(bearer(user.token));
 
   it("returns the document to a member", async () => {
     await LiveCode.create({ chatId: chat.id, code: "print(1)" });

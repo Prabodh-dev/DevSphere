@@ -46,14 +46,14 @@ beforeEach(async () => {
 const missingId = () => new mongoose.Types.ObjectId().toString();
 const report = (user, body) =>
   request(app)
-    .post("/api/report")
+    .post("/api/v1/report")
     .set(bearer(user.token))
     .send({ reason: "spam", ...body });
 const admins = {
   get: (p) => request(app).get(p).set(bearer(admin.token)),
   remove: (type, id) =>
     request(app)
-      .delete(`/api/admin/remove/${type}/${id}`)
+      .delete(`/api/v1/admin/remove/${type}/${id}`)
       .set(bearer(admin.token)),
 };
 
@@ -191,17 +191,17 @@ describe("listing reports", () => {
     await report(alice, { targetType: "status", targetId: status.id });
     await admins.remove("message", message.id);
 
-    const open = await admins.get("/api/admin/reports");
+    const open = await admins.get("/api/v1/admin/reports");
     expect(open.body.map((r) => r.targetType)).toEqual(["status"]);
 
-    const resolved = await admins.get("/api/admin/reports?status=resolved");
+    const resolved = await admins.get("/api/v1/admin/reports?status=resolved");
     expect(resolved.body.map((r) => r.targetType)).toEqual(["message"]);
 
-    const all = await admins.get("/api/admin/reports?status=all");
+    const all = await admins.get("/api/v1/admin/reports?status=all");
     expect(all.body).toHaveLength(2);
 
-    expect((await admins.get("/api/admin/reports?status=weird")).status).toBe(
-      400
-    );
+    expect(
+      (await admins.get("/api/v1/admin/reports?status=weird")).status
+    ).toBe(400);
   });
 });

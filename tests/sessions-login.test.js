@@ -34,7 +34,7 @@ describe("login", () => {
     );
     expect(header).toMatch(/HttpOnly/i);
     expect(header).toMatch(/SameSite=Strict/i);
-    expect(header).toMatch(/Path=\/api\/auth(;|$)/);
+    expect(header).toMatch(/Path=\/api\/v1\/auth(;|$)/);
     expect(header).not.toMatch(/Secure/i);
     const maxAge = Number(header.match(/Max-Age=(\d+)/i)[1]);
     expect(maxAge).toBeGreaterThan(29 * 86400);
@@ -92,7 +92,7 @@ describe("login", () => {
   });
 
   it("registration signs the user in the same way", async () => {
-    const res = await request(app).post("/api/auth/register").send({
+    const res = await request(app).post("/api/v1/auth/register").send({
       username: "fresh",
       email: "fresh@example.test",
       password: "a-good-passw0rd",
@@ -152,17 +152,17 @@ describe("access tokens", () => {
     const old = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, {
       expiresIn: "7d",
     });
-    const res = await request(app).get("/api/chat").set(bearer(old));
+    const res = await request(app).get("/api/v1/chat").set(bearer(old));
     expect(res.status).toBe(401);
   });
 
   it("stop working once their session is revoked", async () => {
     const user = await createUser();
-    const ok = await request(app).get("/api/chat").set(bearer(user.token));
+    const ok = await request(app).get("/api/v1/chat").set(bearer(user.token));
     expect(ok.status).toBe(200);
 
     await Session.updateMany({ userId: user.id }, { revokedAt: new Date() });
-    const res = await request(app).get("/api/chat").set(bearer(user.token));
+    const res = await request(app).get("/api/v1/chat").set(bearer(user.token));
     expect(res.status).toBe(401);
   });
 });

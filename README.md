@@ -77,13 +77,13 @@ are ignored.
 
 ## Authentication
 
-Signing in (`POST /api/auth/login`, or registering) returns two things:
+Signing in (`POST /api/v1/auth/login`, or registering) returns two things:
 
 - an access token in the JSON body (`token`, with `expiresIn` in seconds). It is
   a JWT that lives for `ACCESS_TOKEN_TTL` (15 minutes by default) and is sent as
   `Authorization: Bearer <token>`.
 - a refresh token in an `httpOnly` cookie named `refresh_token`
-  (`SameSite=Strict`, `Secure` when `COOKIE_SECURE=true`, path `/api/auth`). It
+  (`SameSite=Strict`, `Secure` when `COOKIE_SECURE=true`, path `/api/v1/auth`). It
   is a random value that never appears in a response body, and only a SHA-256
   hash of it is stored.
 
@@ -95,12 +95,12 @@ sequenceDiagram
     participant C as Client
     participant A as API
     participant D as Database
-    C->>A: POST /api/auth/login
+    C->>A: POST /api/v1/auth/login
     A->>D: store hash of refresh token (new family)
     A-->>C: access token + refresh cookie
     C->>A: request with access token
     A-->>C: 401 once the access token has expired
-    C->>A: POST /api/auth/refresh (cookie, Origin header)
+    C->>A: POST /api/v1/auth/refresh (cookie, Origin header)
     A->>D: mark old token used, store new one (atomic)
     A-->>C: new access token + new refresh cookie
     Note over C,A: Presenting an already used token again ends the whole family
@@ -244,7 +244,7 @@ There is no default admin. Register a normal account, then promote it:
 pnpm make-admin you@example.com
 ```
 
-Admin routes (`/api/admin/...`) return 403 for everyone else. The script reads
+Admin routes (`/api/v1/admin/...`) return 403 for everyone else. The script reads
 `MONGO_URI` from the environment or `.env`.
 
 ## Uploads
@@ -270,18 +270,18 @@ signed-in user.
 
 ## API
 
-All paths start with `/api`. Everything except the routes marked public needs
+All paths start with `/api/v1`. Unversioned `/api/...` paths answer 404. Everything except the routes marked public needs
 `Authorization: Bearer <access token>`.
 
-Auth (`/api/auth`)
+Auth (`/api/v1/auth`)
 
-- `POST /api/auth/register` and `POST /api/auth/login` (public): create or sign in, returns the access token and sets the refresh cookie.
-- `POST /api/auth/refresh` (cookie, allowed origin): rotate the refresh token and get a new access token.
-- `POST /api/auth/logout` (cookie, allowed origin): end the current login and clear the cookie.
-- `POST /api/auth/logout-all`: end every login of the user.
-- `GET /api/auth/sessions`: list active logins (`id`, `createdAt`, `lastUsedAt`, `userAgent`, `current`).
-- `DELETE /api/auth/sessions/:id`: end one login.
-- `POST /api/auth/change-password`: needs `currentPassword` and `newPassword`, ends the other logins.
+- `POST /api/v1/auth/register` and `POST /api/v1/auth/login` (public): create or sign in, returns the access token and sets the refresh cookie.
+- `POST /api/v1/auth/refresh` (cookie, allowed origin): rotate the refresh token and get a new access token.
+- `POST /api/v1/auth/logout` (cookie, allowed origin): end the current login and clear the cookie.
+- `POST /api/v1/auth/logout-all`: end every login of the user.
+- `GET /api/v1/auth/sessions`: list active logins (`id`, `createdAt`, `lastUsedAt`, `userAgent`, `current`).
+- `DELETE /api/v1/auth/sessions/:id`: end one login.
+- `POST /api/v1/auth/change-password`: needs `currentPassword` and `newPassword`, ends the other logins.
 
 Other areas
 
@@ -292,7 +292,7 @@ Other areas
 - `/status`: `POST /` (text, image or video), `GET /feed`.
 - `/snippets/highlight` (public, rate limited), `/live-code/:chatId`, `/notifications`, `/report` (the target must exist; one open report per user and target).
 - `/admin` (admin role only): users, block and unblock, `GET /reports?status=open|resolved|all`, `DELETE /remove/:type/:id` (message, status, or user, which blocks the account).
-- `GET /healthz` (outside `/api`): process and database status.
+- `GET /healthz` (not versioned): process and database status.
 
 ## Scripts
 
