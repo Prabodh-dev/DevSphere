@@ -49,6 +49,15 @@ export const getAutoIndex = (env = process.env) => {
   return String(env.NODE_ENV ?? "").trim() !== "production";
 };
 
+// Serve the API docs page and the OpenAPI document. On by default, except in
+// production.
+export const getDocsEnabled = (env = process.env) => {
+  const flag = String(env.DOCS_ENABLED ?? "").trim();
+  if (flag === "true") return true;
+  if (flag === "false") return false;
+  return String(env.NODE_ENV ?? "").trim() !== "production";
+};
+
 // Returns a list of human readable problems with the environment.
 export const getEnvProblems = (env = process.env) => {
   const problems = REQUIRED.filter((name) => isBlank(env[name])).map(
@@ -90,6 +99,12 @@ export const getEnvProblems = (env = process.env) => {
     !["true", "false"].includes(String(env.MONGO_AUTO_INDEX).trim())
   ) {
     problems.push("MONGO_AUTO_INDEX must be true or false");
+  }
+  if (
+    !isBlank(env.DOCS_ENABLED) &&
+    !["true", "false"].includes(String(env.DOCS_ENABLED).trim())
+  ) {
+    problems.push("DOCS_ENABLED must be true or false");
   }
   return problems;
 };

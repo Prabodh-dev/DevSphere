@@ -3,10 +3,11 @@ import helmet from "helmet";
 import mongoose from "mongoose";
 import { notFoundHandler, errorHandler } from "./middlewares/errorHandler.js";
 import { limiters } from "./middlewares/rateLimit.js";
-import { getTrustProxy } from "./config/env.js";
+import { getDocsEnabled, getTrustProxy } from "./config/env.js";
 import { corsMiddleware } from "./middlewares/cors.js";
 
 import v1Routes from "./routes/index.js";
+import docsRoutes from "./routes/docs.js";
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.get("/healthz", (req, res) => {
 
 app.use("/api", limiters.general);
 
+if (getDocsEnabled()) app.use("/api/v1", docsRoutes);
 app.use("/api/v1", v1Routes);
 
 app.use(notFoundHandler);
