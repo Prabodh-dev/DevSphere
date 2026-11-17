@@ -51,6 +51,10 @@ Copy `.env.example` to `.env` and set:
 | `NODE_ENV`                 | no          | `development`, `test` or `production`                                                                |
 | `MONGO_AUTO_INDEX`         | no          | `true` or `false`; build missing indexes at startup, default `true` except in production             |
 | `DOCS_ENABLED`             | no          | `true` or `false`; serve the API docs page and OpenAPI document, default `true` except in production |
+| `LOG_LEVEL`                | no          | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`, default `info`                       |
+| `LOG_PRETTY`               | no          | `true` for human readable logs instead of JSON, default `false`                                      |
+| `METRICS_ENABLED`          | no          | `true` to serve Prometheus metrics at `/metrics`, default `false`                                    |
+| `METRICS_TOKEN`            | no          | When set, `/metrics` needs this value as a bearer token                                              |
 | `CORS_ORIGINS`             | no          | Comma separated browser origins allowed to call the API (none if empty)                              |
 | `TRUST_PROXY`              | no          | Number of reverse proxies in front of the app, default `0`                                           |
 | `ACCESS_TOKEN_TTL`         | no          | Access token lifetime (`30s`, `15m`, `2h`, `1d`), default `15m`                                      |

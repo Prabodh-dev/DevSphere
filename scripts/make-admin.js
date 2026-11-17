@@ -1,6 +1,6 @@
 // Usage: pnpm make-admin <email>
 // Promotes an existing user to the admin role.
-import "dotenv/config";
+import { config } from "../config/index.js";
 import mongoose from "mongoose";
 import User from "../models/User.js";
 
@@ -10,13 +10,13 @@ if (!email) {
   console.error("Usage: pnpm make-admin <email>");
   process.exit(1);
 }
-if (!process.env.MONGO_URI) {
+if (!config.mongoUri) {
   console.error("MONGO_URI is not set");
   process.exit(1);
 }
 
 try {
-  await mongoose.connect(process.env.MONGO_URI, {
+  await mongoose.connect(config.mongoUri, {
     serverSelectionTimeoutMS: 5000,
   });
   const user = await User.findOneAndUpdate(

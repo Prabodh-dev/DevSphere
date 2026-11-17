@@ -1,7 +1,7 @@
 // socket.js
 import { Server } from "socket.io";
 import { getRedisClient, initRedis } from "./config/redis.js";
-import { getCorsOrigins } from "./config/env.js";
+import { config } from "./config/index.js";
 import Chat from "./models/Chat.js";
 import LiveCode from "./models/LiveCode.js";
 import User from "./models/User.js";
@@ -66,10 +66,7 @@ const setPresence = async (command, userId) => {
   const client = getRedisClient();
   if (!client) return;
   try {
-    await client[command](
-      `${process.env.REDIS_KEY_PREFIX ?? ""}onlineUsers`,
-      userId
-    );
+    await client[command](`${config.redis.keyPrefix}onlineUsers`, userId);
   } catch (err) {
     console.warn(`Redis ${command} failed:`, err.message);
   }
@@ -101,7 +98,7 @@ const isChatMember = async (chatId, userId) =>
 
 export const setupSocketIO = (server, options = {}) => {
   const rateLimit = { ...DEFAULT_RATE_LIMIT, ...options.rateLimit };
-  const origins = getCorsOrigins();
+  const origins = config.corsOrigins;
 
   const io = new Server(server, {
     cors: {

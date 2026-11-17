@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import Session from "../models/Session.js";
 import User from "../models/User.js";
 import { accountBlocked, unauthorized } from "./httpError.js";
-import { getRefreshTtlDays } from "../config/env.js";
+import { config } from "../config/index.js";
 import { newRefreshToken, hashToken } from "./tokens.js";
 import { sessionRoom } from "./rooms.js";
 
@@ -24,7 +24,9 @@ export async function startSession(userId, req) {
     familyId,
     familyStartedAt: now,
     tokenHash: hashToken(refreshToken),
-    expiresAt: new Date(now.getTime() + getRefreshTtlDays() * DAY_MS),
+    expiresAt: new Date(
+      now.getTime() + config.auth.refreshTokenTtlDays * DAY_MS
+    ),
     ...clientInfo(req),
   });
 
@@ -139,7 +141,9 @@ export async function rotateSession(rawToken, req, io) {
     familyId: session.familyId,
     familyStartedAt: session.familyStartedAt,
     tokenHash: hashToken(refreshToken),
-    expiresAt: new Date(now.getTime() + getRefreshTtlDays() * DAY_MS),
+    expiresAt: new Date(
+      now.getTime() + config.auth.refreshTokenTtlDays * DAY_MS
+    ),
     ...clientInfo(req),
   });
 

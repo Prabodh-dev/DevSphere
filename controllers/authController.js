@@ -15,7 +15,7 @@ import {
   readRefreshCookie,
   setRefreshCookie,
 } from "../utils/cookies.js";
-import { getAccessTokenTtlSeconds } from "../config/env.js";
+import { config } from "../config/index.js";
 import {
   HttpError,
   conflict,
@@ -38,7 +38,7 @@ async function signIn(req, res, user, status) {
     username: user.username,
     email: user.email,
     token: signAccessToken(user._id.toString(), familyId),
-    expiresIn: getAccessTokenTtlSeconds(),
+    expiresIn: config.auth.accessTokenTtlSeconds,
   });
 }
 
@@ -92,7 +92,7 @@ export const refreshSession = async (req, res) => {
   setRefreshCookie(res, result.refreshToken);
   res.status(200).json({
     token: signAccessToken(result.userId, result.familyId),
-    expiresIn: getAccessTokenTtlSeconds(),
+    expiresIn: config.auth.accessTokenTtlSeconds,
   });
 };
 

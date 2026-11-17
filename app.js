@@ -3,7 +3,7 @@ import helmet from "helmet";
 import mongoose from "mongoose";
 import { notFoundHandler, errorHandler } from "./middlewares/errorHandler.js";
 import { limiters } from "./middlewares/rateLimit.js";
-import { getDocsEnabled, getTrustProxy } from "./config/env.js";
+import { config } from "./config/index.js";
 import { corsMiddleware } from "./middlewares/cors.js";
 
 import v1Routes from "./routes/index.js";
@@ -13,7 +13,7 @@ const app = express();
 
 // TRUST_PROXY is the number of reverse proxies in front of the app (default 0).
 // It lets req.ip, and so the rate limiters, see the real client address.
-app.set("trust proxy", getTrustProxy());
+app.set("trust proxy", config.trustProxy);
 
 app.use(helmet());
 app.use(corsMiddleware);
@@ -29,7 +29,7 @@ app.get("/healthz", (req, res) => {
 
 app.use("/api", limiters.general);
 
-if (getDocsEnabled()) app.use("/api/v1", docsRoutes);
+if (config.docsEnabled) app.use("/api/v1", docsRoutes);
 app.use("/api/v1", v1Routes);
 
 app.use(notFoundHandler);

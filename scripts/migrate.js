@@ -1,18 +1,18 @@
 // Usage: pnpm migrate [--dry-run]
 // Applies pending data migrations. Never runs when the server starts.
-import "dotenv/config";
+import { config } from "../config/index.js";
 import mongoose from "mongoose";
 import { runMigrations } from "../utils/migrationRunner.js";
 
 const dryRun = process.argv.includes("--dry-run");
 
-if (!process.env.MONGO_URI) {
+if (!config.mongoUri) {
   console.error("MONGO_URI is not set");
   process.exit(1);
 }
 
 try {
-  await mongoose.connect(process.env.MONGO_URI, {
+  await mongoose.connect(config.mongoUri, {
     serverSelectionTimeoutMS: 5000,
   });
 

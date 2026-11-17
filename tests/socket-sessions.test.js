@@ -5,6 +5,7 @@ import app from "../app.js";
 import { startSocketServer, once } from "./helpers/socket.js";
 import { connectTestDb, clearTestDb, disconnectTestDb } from "./helpers/db.js";
 import { createUser, loginAs, bearer, ORIGIN } from "./helpers/users.js";
+import { withEnv } from "./helpers/config.js";
 
 let server;
 let user;
@@ -38,13 +39,9 @@ describe("socket access tokens", () => {
   });
 
   it("close the socket when the token expires, and a fresh token reconnects", async () => {
-    process.env.ACCESS_TOKEN_TTL = "2s";
-    let login;
-    try {
-      login = await loginAs(user);
-    } finally {
-      process.env.ACCESS_TOKEN_TTL = "15m";
-    }
+    const login = await withEnv({ ACCESS_TOKEN_TTL: "2s" }, () =>
+      loginAs(user)
+    );
 
     const socket = await server.client({ token: login.token });
     const started = Date.now();
