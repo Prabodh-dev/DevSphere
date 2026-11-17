@@ -4,7 +4,7 @@ import {
   fetchChats,
   sendMessage,
   getMessages,
-} from "../controllers/messageController.js";
+} from "../controllers/chatController.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
 import validate from "../middlewares/validate.js";
 import {

@@ -6,7 +6,7 @@ import {
   addToGroup,
   removeFromGroup,
   renameGroup,
-} from "../controllers/chatController.js";
+} from "../controllers/groupController.js";
 import {
   createGroupBody,
   groupMemberBody,
