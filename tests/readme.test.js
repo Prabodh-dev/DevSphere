@@ -92,3 +92,34 @@ describe("CHANGELOG", () => {
     }
   });
 });
+
+describe("API documentation", () => {
+  it("points to the docs page, the spec and the socket events", () => {
+    const readme = read("README.md");
+    for (const text of [
+      "/api/v1/docs",
+      "/api/v1/openapi.json",
+      "docs/socket-events.md",
+      "DOCS_ENABLED",
+      "nextCursor",
+      "RATE_LIMITED",
+      "Retry-After",
+    ]) {
+      expect(readme, text).toContain(text);
+    }
+  });
+
+  it("records the API contract changes in the changelog", () => {
+    const changelog = read("CHANGELOG.md");
+    for (const text of [
+      "/api/v1",
+      "error",
+      "nextCursor",
+      "OpenAPI",
+      "socket-events.md",
+      "CORS",
+    ]) {
+      expect(changelog, text).toContain(text);
+    }
+  });
+});

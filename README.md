@@ -271,8 +271,23 @@ signed-in user.
 
 ## API
 
-All paths start with `/api/v1`. Unversioned `/api/...` paths answer 404. Everything except the routes marked public needs
-`Authorization: Bearer <access token>`.
+All paths start with `/api/v1`. Unversioned `/api/...` paths answer 404.
+
+The full reference is generated from the same schemas the API validates with:
+
+- interactive docs at `/api/v1/docs`
+- the OpenAPI 3.1 document at `/api/v1/openapi.json`
+- real-time events in [docs/socket-events.md](docs/socket-events.md)
+
+The docs are on by default and off in production unless `DOCS_ENABLED=true`.
+
+Conventions:
+
+- Everything except the routes marked public needs `Authorization: Bearer <access token>`.
+- Errors always look like `{ "error": { "code", "message", "details"? } }` with a stable `code` such as `VALIDATION_ERROR`, `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `RATE_LIMITED` or `UPLOADS_NOT_CONFIGURED`. Validation errors list the failing fields in `details`.
+- Lists take `limit` (default 30, at most 100) and `cursor`, and answer `{ "items": [...], "nextCursor": "..." | null }`. Pass `nextCursor` back as `cursor` for the next page. Cursors are opaque; an invalid one is a 400. Chat messages come newest first, so a later page holds older messages.
+- Rate limited responses (429) carry a `Retry-After` header, and every response has `RateLimit` and `RateLimit-Policy` headers.
+- Browsers can call the API from the origins in `CORS_ORIGINS`: credentials are allowed for them only, and the rate limit headers are readable.
 
 Auth (`/api/v1/auth`)
 
@@ -287,24 +302,27 @@ Auth (`/api/v1/auth`)
 Other areas
 
 - `/profile`: `POST /` (bio, links, tags and an optional `avatar` file), `GET /me`, `GET /:userId` (public). Responses include follower and following counts.
-- `/users`: follow and unfollow, `GET /:id/followers` and `/following` (`limit`, `skip`), `PATCH /me/tags`, `GET /?tag=`.
-- `/chat`: `POST /access`, `GET /`, `POST /message`, `GET /message/:chatId`.
+- `/users`: follow and unfollow, paged `GET /:id/followers` and `/following`, `PATCH /me/tags`, paged `GET /?tag=`.
+- `/chat`: `POST /access`, paged `GET /`, `POST /message`, paged `GET /message/:chatId`.
 - `/group`: `POST /create`, `PATCH /add`, `/remove`, `/rename`.
-- `/status`: `POST /` (text, image or video), `GET /feed`.
-- `/snippets/highlight` (public, rate limited), `/live-code/:chatId`, `/notifications`, `/report` (the target must exist; one open report per user and target).
-- `/admin` (admin role only): users, block and unblock, `GET /reports?status=open|resolved|all`, `DELETE /remove/:type/:id` (message, status, or user, which blocks the account).
+- `/status`: `POST /` (text, image or video), paged `GET /feed`.
+- `/snippets/highlight` (public, rate limited), `/live-code/:chatId`, paged `/notifications`, `/report` (the target must exist; one open report per user and target).
+- `/admin` (admin role only): paged users, block and unblock, paged `GET /reports?status=open|resolved|all`, `DELETE /remove/:type/:id` (message, status, or user, which blocks the account).
 - `GET /healthz` (not versioned): process and database status.
 
 ## Scripts
 
-| Command             | What it does                  |
-| ------------------- | ----------------------------- |
-| `pnpm dev`          | Start with automatic restarts |
-| `pnpm start`        | Start the server              |
-| `pnpm lint`         | Run ESLint                    |
-| `pnpm format`       | Format the code with Prettier |
-| `pnpm format:check` | Check formatting              |
-| `pnpm test`         | Run the test suite            |
+| Command                   | What it does                                           |
+| ------------------------- | ------------------------------------------------------ |
+| `pnpm dev`                | Start with automatic restarts                          |
+| `pnpm start`              | Start the server                                       |
+| `pnpm lint`               | Run ESLint                                             |
+| `pnpm format`             | Format the code with Prettier                          |
+| `pnpm format:check`       | Check formatting                                       |
+| `pnpm test`               | Run the test suite                                     |
+| `pnpm make-admin <email>` | Give an existing user the admin role                   |
+| `pnpm migrate`            | Apply pending data migrations (`--dry-run` to preview) |
+| `pnpm db:indexes`         | Sync database indexes with the models                  |
 
 ## Testing
 
