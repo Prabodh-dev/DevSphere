@@ -1,0 +1,11 @@
+# Everything is text unless git can tell it is binary; line endings are
+# converted to the platform's on checkout and stored as LF.
+* text=auto
+
+# These must be LF on every platform: bash and Docker choke on CRLF.
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+migrations/*.js text eol=lf
+scripts/*.js text eol=lf
