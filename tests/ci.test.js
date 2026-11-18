@@ -160,14 +160,23 @@ function run(command, args, env) {
 }
 
 describe("scripts/smoke-test.sh", () => {
-  it("is executable and checks readiness, register and login", () => {
+  // Windows has no Unix mode bits, so the executable flag cannot be checked there.
+  it.skipIf(process.platform === "win32")("is executable", () => {
     const file = path.join(root, "scripts/smoke-test.sh");
     expect(statSync(file).mode & 0o111).not.toBe(0);
-    const text = readFileSync(file, "utf8");
+  });
+
+  it("checks readiness, register and login", () => {
+    const text = readFileSync(path.join(root, "scripts/smoke-test.sh"), "utf8");
     expect(text).toContain("/readyz");
     expect(text).toContain("/api/v1/auth/register");
     expect(text).toContain("/api/v1/auth/login");
     expect(text).toMatch(/set -euo pipefail/);
+  });
+
+  it("has no carriage returns, which would break it under bash", () => {
+    const bytes = readFileSync(path.join(root, "scripts/smoke-test.sh"));
+    expect(bytes.includes(0x0d)).toBe(false);
   });
 
   it("passes against a running server", async () => {
