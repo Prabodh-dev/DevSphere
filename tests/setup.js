@@ -1,4 +1,5 @@
 import { randomBytes } from "crypto";
+import { beforeAll, afterAll } from "vitest";
 
 // Every environment variable the code reads is set here, explicitly. dotenv
 // never overrides a variable that is already defined, so a developer's local
@@ -49,3 +50,30 @@ for (const [name, value] of Object.entries(defaults)) {
 
 // Provided by the environment (CI services or a local shell), with a fallback.
 process.env.REDIS_URL = process.env.REDIS_URL || "redis://127.0.0.1:6379";
+
+// A test file must leave nothing behind for the next one. Workers can be
+// reused (and are with --no-isolate), so a Redis client or an environment
+// variable left over from one file changes the results of another.
+const suiteEnv = { ...process.env };
+const CONTROLLED = ["REDIS_URL", "REDIS_KEY_PREFIX", "TEST_DB_NAME"];
+
+beforeAll(async () => {
+  // `config` is read once per module load; point it at this file's settings.
+  const { reloadConfig } = await import("../config/index.js");
+  reloadConfig();
+});
+
+afterAll(async () => {
+  const { closeRedis } = await import("../config/redis.js");
+  await closeRedis();
+
+  const changed = CONTROLLED.filter(
+    (name) => process.env[name] !== suiteEnv[name]
+  );
+  for (const name of changed) process.env[name] = suiteEnv[name];
+  if (changed.length) {
+    throw new Error(
+      `${changed.join(", ")} was changed and not put back by this test file`
+    );
+  }
+});
