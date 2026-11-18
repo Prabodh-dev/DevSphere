@@ -179,47 +179,57 @@ describe("scripts/smoke-test.sh", () => {
     expect(bytes.includes(0x0d)).toBe(false);
   });
 
-  it("passes against a running server", async () => {
-    const port = await freePort();
-    const server = run(
-      process.execPath,
-      ["server.js"],
-      controlledEnv({
-        MONGO_URI: testMongoUri(),
-        JWT_SECRET: "test-only-secret-that-is-long-enough-123",
-        PORT: String(port),
-      })
-    );
-    try {
+  // On Windows, bash may be the WSL one and cannot reach the host's localhost, so this runs on Linux and in CI.
+  it.skipIf(process.platform === "win32")(
+    "passes against a running server",
+    async () => {
+      const port = await freePort();
+      const server = run(
+        process.execPath,
+        ["server.js"],
+        controlledEnv({
+          MONGO_URI: testMongoUri(),
+          JWT_SECRET: "test-only-secret-that-is-long-enough-123",
+          PORT: String(port),
+        })
+      );
+      try {
+        const smoke = run(
+          "bash",
+          ["scripts/smoke-test.sh", `http://127.0.0.1:${port}`],
+          {
+            PATH: process.env.PATH,
+          }
+        );
+        const result = await smoke.exited;
+        expect(result.output()).toContain("smoke test passed");
+        expect(result.code).toBe(0);
+      } finally {
+        server.child.kill("SIGTERM");
+        await server.exited;
+        await dropTestDb();
+      }
+    },
+    60000
+  );
+
+  // On Windows, bash may be the WSL one and cannot reach the host's localhost, so this runs on Linux and in CI.
+  it.skipIf(process.platform === "win32")(
+    "fails when nothing is listening",
+    async () => {
+      const port = await freePort();
       const smoke = run(
         "bash",
         ["scripts/smoke-test.sh", `http://127.0.0.1:${port}`],
         {
           PATH: process.env.PATH,
+          SMOKE_TIMEOUT_SECONDS: "3",
         }
       );
       const result = await smoke.exited;
-      expect(result.output()).toContain("smoke test passed");
-      expect(result.code).toBe(0);
-    } finally {
-      server.child.kill("SIGTERM");
-      await server.exited;
-      await dropTestDb();
-    }
-  }, 60000);
-
-  it("fails when nothing is listening", async () => {
-    const port = await freePort();
-    const smoke = run(
-      "bash",
-      ["scripts/smoke-test.sh", `http://127.0.0.1:${port}`],
-      {
-        PATH: process.env.PATH,
-        SMOKE_TIMEOUT_SECONDS: "3",
-      }
-    );
-    const result = await smoke.exited;
-    expect(result.code).not.toBe(0);
-    expect(result.output()).toMatch(/not ready/i);
-  }, 30000);
+      expect(result.code).not.toBe(0);
+      expect(result.output()).toMatch(/not ready/i);
+    },
+    30000
+  );
 });
