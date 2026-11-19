@@ -22,6 +22,7 @@ import { logger } from "./utils/logger.js";
 import { socketConnections, socketEvents } from "./utils/metrics.js";
 import { isSessionActive } from "./services/sessionService.js";
 import { sendMessage } from "./services/chatService.js";
+import { SharedStore } from "./utils/rateLimitStore.js";
 import { errorBody } from "./utils/apiError.js";
 import { SocketInputError, parse, socketError } from "./socket/errors.js";
 import {
@@ -92,6 +93,9 @@ export const setupSocketIO = (server, options = {}) => {
     maxHttpBufferSize: MAX_PACKET_BYTES,
   });
 
+  const limiter = new SharedStore({ name: "socket" });
+  limiter.init({ windowMs: rateLimit.windowMs });
+
   // Connects in the background; never blocks connections.
   initRedis();
 
@@ -134,18 +138,12 @@ export const setupSocketIO = (server, options = {}) => {
     );
     socket.on("disconnect", () => clearTimeout(closeAt));
 
-    // Per-connection allowance of incoming events.
-    let windowStart = Date.now();
-    let count = 0;
+    // Allowance of incoming events. It is counted per user, so several tabs
+    // (and several app instances, with Redis) share it.
     let violations = 0;
-    socket.use(([event], next) => {
-      const now = Date.now();
-      if (now - windowStart >= rateLimit.windowMs) {
-        windowStart = now;
-        count = 0;
-      }
-      count += 1;
-      if (count <= rateLimit.max) {
+    socket.use(async ([event], next) => {
+      const { totalHits } = await limiter.increment(userId);
+      if (totalHits <= rateLimit.max) {
         violations = 0;
         return next();
       }

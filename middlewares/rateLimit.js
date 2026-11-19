@@ -1,6 +1,7 @@
 import rateLimit from "express-rate-limit";
 import { sendError } from "../utils/apiError.js";
 import { config } from "../config/index.js";
+import { SharedStore } from "../utils/rateLimitStore.js";
 
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
 
@@ -16,34 +17,36 @@ const tooMany = (req, res) => {
 };
 
 export function createLimiters(options = {}) {
-  const base = {
+  // Counters are shared through Redis when it is available (see SharedStore).
+  const base = (name) => ({
     standardHeaders: "draft-7",
     legacyHeaders: false,
     handler: tooMany,
-  };
+    store: new SharedStore({ name }),
+  });
 
   return {
     // Applied to every /api request.
     general: rateLimit({
-      ...base,
+      ...base("general"),
       windowMs: FIFTEEN_MINUTES,
       limit: options.generalMax ?? 300,
     }),
     // Login and registration.
     auth: rateLimit({
-      ...base,
+      ...base("auth"),
       windowMs: FIFTEEN_MINUTES,
       limit: options.authMax ?? 10,
     }),
     // Refresh token exchange.
     refresh: rateLimit({
-      ...base,
+      ...base("refresh"),
       windowMs: FIFTEEN_MINUTES,
       limit: options.refreshMax ?? 60,
     }),
     // The public snippet highlighter.
     highlight: rateLimit({
-      ...base,
+      ...base("highlight"),
       windowMs: 60 * 1000,
       limit: options.highlightMax ?? 30,
     }),
