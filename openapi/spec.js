@@ -450,6 +450,17 @@ route({
 });
 route({
   method: "get",
+  path: "/presence",
+  tags: ["Presence"],
+  summary: "Who is online",
+  description:
+    "Online state and last seen time of up to 100 users. Only people you share a chat with or follow (and you) are returned; other ids are left out of the answer.",
+  auth: "bearer",
+  query: S.presenceQuery,
+  response: R.PresenceList,
+});
+route({
+  method: "get",
   path: "/notifications",
   tags: ["Notifications"],
   summary: "Your notifications, newest first",
@@ -545,6 +556,7 @@ export function buildOpenApiDocument() {
       "Status",
       "Snippets",
       "Live code",
+      "Presence",
       "Notifications",
       "Reports",
       "Admin",

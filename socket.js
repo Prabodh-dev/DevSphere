@@ -4,10 +4,14 @@ import { createAdapter } from "@socket.io/redis-adapter";
 import {
   closeAdapterClients,
   createAdapterClients,
-  getRedisClient,
   initRedis,
 } from "./config/redis.js";
 import { config } from "./config/index.js";
+import {
+  presence,
+  recordLastSeen,
+  trackPresence,
+} from "./services/presenceService.js";
 import Chat from "./models/Chat.js";
 import LiveCode from "./models/LiveCode.js";
 import User from "./models/User.js";
@@ -41,20 +45,6 @@ const MAX_PACKET_BYTES = 512 * 1024;
 const DEFAULT_RATE_LIMIT = { max: 100, windowMs: 10 * 1000 };
 // Events dropped in a row before the connection is closed.
 const MAX_VIOLATIONS = 50;
-
-// Presence is best effort: a Redis problem must never break a socket.
-const setPresence = async (command, userId) => {
-  const client = getRedisClient();
-  if (!client) return;
-  try {
-    await client[command](`${config.redis.keyPrefix}onlineUsers`, userId);
-  } catch (err) {
-    logger.warn(
-      { err: err.message, command, userId },
-      "Redis presence update failed"
-    );
-  }
-};
 
 // Identity comes from the token only.
 const authenticate = async (socket, next) => {
@@ -271,15 +261,38 @@ export const setupSocketIO = (server, options = {}) => {
         .emit("code-update", { code, language: lang, fileName: name });
     });
 
-    // ========== Disconnect ==========
-    on("disconnect", async () => {
-      await setPresence("sRem", userId);
-      socket.broadcast.emit("user-offline", userId);
-    });
-
     // ========== Presence ==========
-    setPresence("sAdd", userId);
-    socket.broadcast.emit("user-online", userId);
+    // A user is online while they have at least one connection, on any
+    // instance. Everyone is told when the first one opens and the last closes.
+    const heartbeat = setInterval(
+      () => presence.heartbeat(userId, socket.id),
+      presence.heartbeatMs
+    );
+    heartbeat.unref();
+
+    presence
+      .connected(userId, socket.id)
+      .then(({ first }) => {
+        if (first) socket.broadcast.emit("user-online", userId);
+      })
+      .catch((err) => log.warn({ err }, "presence update failed"));
+
+    socket.on("disconnect", () => {
+      clearInterval(heartbeat);
+      trackPresence(
+        (async () => {
+          try {
+            const { last } = await presence.disconnected(userId, socket.id);
+            if (last) {
+              await recordLastSeen(userId);
+              io.emit("user-offline", userId);
+            }
+          } catch (err) {
+            log.warn({ err }, "presence update failed");
+          }
+        })()
+      );
+    });
   });
 
   return io;

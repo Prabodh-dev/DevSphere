@@ -181,6 +181,21 @@ export const ChatListItem = z
   .loose()
   .openapi("ChatListItem");
 
+export const PresenceItem = z
+  .object({
+    userId: id(ID),
+    online: z.boolean(),
+    lastSeen: date(WHEN).nullable().openapi({
+      description:
+        "When the user's last connection closed; null while online or if unknown",
+    }),
+  })
+  .openapi("PresenceItem");
+
+export const PresenceList = z
+  .object({ items: z.array(PresenceItem) })
+  .openapi("PresenceList");
+
 export const Message = z
   .object({
     _id: id(ID),

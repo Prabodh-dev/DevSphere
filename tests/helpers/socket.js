@@ -3,6 +3,7 @@ import { io as connect } from "socket.io-client";
 import app from "../../app.js";
 import { setupSocketIO } from "../../socket.js";
 import { closeRedis } from "../../config/redis.js";
+import { presence, settlePresence } from "../../services/presenceService.js";
 
 export async function startSocketServer(options) {
   const server = http.createServer(app);
@@ -50,6 +51,9 @@ export async function startSocketServer(options) {
       clients.forEach((c) => c.close());
       io.close();
       await new Promise((resolve) => server.close(() => resolve()));
+      // Presence updates of the closed sockets write to the database.
+      await settlePresence();
+      presence.reset();
       // setupSocketIO starts the shared Redis client. Release it, or the next
       // test file in the same worker inherits a client it did not ask for.
       await closeRedis();
