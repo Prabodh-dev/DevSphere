@@ -1,6 +1,12 @@
 // socket.js
 import { Server } from "socket.io";
-import { getRedisClient, initRedis } from "./config/redis.js";
+import { createAdapter } from "@socket.io/redis-adapter";
+import {
+  closeAdapterClients,
+  createAdapterClients,
+  getRedisClient,
+  initRedis,
+} from "./config/redis.js";
 import { config } from "./config/index.js";
 import Chat from "./models/Chat.js";
 import LiveCode from "./models/LiveCode.js";
@@ -88,6 +94,19 @@ export const setupSocketIO = (server, options = {}) => {
 
   // Connects in the background; never blocks connections.
   initRedis();
+
+  // With Redis, several app instances share rooms and events. Without it this
+  // instance works alone.
+  const adapterClients = createAdapterClients();
+  if (adapterClients) {
+    io.adapter(
+      createAdapter(adapterClients.pub, adapterClients.sub, {
+        key: `${config.redis.keyPrefix}socket.io`,
+      })
+    );
+    // The adapter is closed with the server; its connections follow.
+    server.once("close", () => closeAdapterClients(adapterClients));
+  }
 
   io.use(authenticate);
 
