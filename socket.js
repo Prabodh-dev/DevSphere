@@ -13,7 +13,6 @@ import {
   trackPresence,
 } from "./services/presenceService.js";
 import Chat from "./models/Chat.js";
-import LiveCode from "./models/LiveCode.js";
 import User from "./models/User.js";
 import {
   chatRoom,
@@ -27,6 +26,11 @@ import { socketConnections, socketEvents } from "./utils/metrics.js";
 import { isSessionActive } from "./services/sessionService.js";
 import { sendMessage } from "./services/chatService.js";
 import { markRead } from "./services/readService.js";
+import {
+  applyEdit,
+  flushLiveCode,
+  getLiveCodeDocument,
+} from "./services/liveCodeService.js";
 import { SharedStore } from "./utils/rateLimitStore.js";
 import { errorBody } from "./utils/apiError.js";
 import { SocketInputError, parse, socketError } from "./socket/errors.js";
@@ -232,43 +236,69 @@ export const setupSocketIO = (server, options = {}) => {
     });
 
     // ========== Live Code Editor ==========
+    // Chats this connection edited, saved when it disconnects.
+    const edited = new Set();
+
     on("join-live-code", async (data) => {
       const { chatId } = parse(joinLiveCodePayload, data);
       await requireMember(chatId);
       socket.join(liveCodeRoom(chatId));
-      const doc = await LiveCode.findOne({ chatId });
+      const doc = await getLiveCodeDocument(chatId);
       if (doc) {
         socket.emit("load-code", doc);
       }
     });
 
-    on("code-change", async (data) => {
-      const { chatId, code, language, fileName } = parse(
-        codeChangePayload,
-        data
-      );
-      await requireMember(chatId);
+    const codeChange = async (data) => {
+      const edit = parse(codeChangePayload, data);
+      await requireMember(edit.chatId);
 
-      const lang = language ?? "plaintext";
-      const name = fileName ?? "main";
-
-      const update = {
-        code,
-        language: lang,
-        fileName: name,
-        updatedBy: userId,
-      };
-      try {
-        await LiveCode.findOneAndUpdate({ chatId }, update, { upsert: true });
-      } catch (err) {
-        // Two first edits arriving together: the other one created the
-        // document, so this one is now a plain update.
-        if (err.code !== 11000) throw err;
-        await LiveCode.findOneAndUpdate({ chatId }, update);
+      const result = await applyEdit(userId, edit);
+      if (!result.ok) {
+        // Someone else's edit came first: send the current document.
+        const conflict = { chatId: edit.chatId, document: result.document };
+        socket.emit("code-conflict", conflict);
+        return {
+          ok: false,
+          error: {
+            code: "REVISION_CONFLICT",
+            message: "The document has changed since your base revision",
+          },
+          ...conflict,
+        };
       }
-      socket
-        .to(liveCodeRoom(chatId))
-        .emit("code-update", { code, language: lang, fileName: name });
+
+      edited.add(edit.chatId);
+      const { code, language, fileName, revision } = result.document;
+      socket.to(liveCodeRoom(edit.chatId)).emit("code-update", {
+        chatId: edit.chatId,
+        code,
+        language,
+        fileName,
+        revision,
+        updatedBy: userId,
+      });
+      return { chatId: edit.chatId, revision };
+    };
+
+    // One socket's edits are handled in the order they were sent, so edits
+    // that follow each other on consecutive revisions all apply.
+    let editQueue = Promise.resolve();
+    on("code-change", (data) => {
+      const run = editQueue.then(() => codeChange(data));
+      editQueue = run.catch(() => {});
+      return run;
+    });
+
+    // Edits are saved a little after the last one; leaving saves them now.
+    socket.on("disconnect", () => {
+      if (edited.size) {
+        trackPresence(
+          flushLiveCode([...edited]).catch((err) =>
+            log.warn({ err }, "saving live code failed")
+          )
+        );
+      }
     });
 
     // ========== Presence ==========

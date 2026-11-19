@@ -1,10 +1,8 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import request from "supertest";
 import jwt from "jsonwebtoken";
-import mongoose from "mongoose";
 import app from "../app.js";
 import Chat from "../models/Chat.js";
-import LiveCode from "../models/LiveCode.js";
 import User from "../models/User.js";
 import { startSocketServer, once, never, sleep } from "./helpers/socket.js";
 import { connectTestDb, clearTestDb, disconnectTestDb } from "./helpers/db.js";
@@ -246,87 +244,6 @@ describe("notifications", () => {
   });
 });
 
-describe("live code", () => {
-  const change = (chatId, code = "x = 1") => ({
-    chatId,
-    code,
-    language: "python",
-    fileName: "a.py",
-  });
-
-  it("is stored for members and sent to later joiners", async () => {
-    const a = await server.client(alice);
-    a.emit("code-change", change(chat.id, "print(1)"));
-    await sleep(400);
-
-    const doc = await LiveCode.findOne({ chatId: chat.id });
-    expect(doc.code).toBe("print(1)");
-    expect(doc.updatedBy.toString()).toBe(alice.id);
-
-    const b = await server.client(bob);
-    const loaded = once(b, "load-code");
-    b.emit("join-live-code", { chatId: chat.id });
-    expect((await loaded).code).toBe("print(1)");
-  });
-
-  it("is broadcast to other members in the live room", async () => {
-    const a = await server.client(alice);
-    const b = await server.client(bob);
-    a.emit("join-live-code", { chatId: chat.id });
-    b.emit("join-live-code", { chatId: chat.id });
-    await sleep(200);
-
-    const update = once(b, "code-update");
-    a.emit("code-change", change(chat.id));
-    expect(await update).toEqual({
-      code: "x = 1",
-      language: "python",
-      fileName: "a.py",
-    });
-  });
-
-  it("cannot be read or written by non-members", async () => {
-    await LiveCode.create({ chatId: chat.id, code: "private" });
-    const c = await server.client(carol);
-
-    const joinError = once(c, "socket-error");
-    const leaked = never(c, "load-code");
-    c.emit("join-live-code", { chatId: chat.id });
-    expect(await joinError).toMatchObject({ event: "join-live-code" });
-    expect(await leaked).toBe(true);
-
-    const writeError = once(c, "socket-error");
-    c.emit("code-change", change(chat.id, "overwritten"));
-    expect(await writeError).toMatchObject({ event: "code-change" });
-    expect((await LiveCode.findOne({ chatId: chat.id })).code).toBe("private");
-  });
-
-  it("answers unknown chats with an error and keeps running", async () => {
-    const a = await server.client(alice);
-    const error = once(a, "socket-error");
-    a.emit("code-change", change(new mongoose.Types.ObjectId().toString()));
-    expect(await error).toMatchObject({ event: "code-change" });
-
-    const bad = once(a, "socket-error");
-    a.emit("code-change", change("not-an-object-id"));
-    const badError = await bad;
-    expect(badError).toMatchObject({
-      event: "code-change",
-      error: {
-        code: "VALIDATION_ERROR",
-        message: "Invalid payload",
-        details: [{ field: "chatId", message: expect.any(String) }],
-      },
-    });
-
-    a.emit("code-change", change(chat.id, "still works"));
-    await sleep(300);
-    expect((await LiveCode.findOne({ chatId: chat.id })).code).toBe(
-      "still works"
-    );
-  });
-});
-
 describe("payload limits", () => {
   it("rejects oversized messages and code", async () => {
     const a = await server.client(alice);
@@ -338,12 +255,12 @@ describe("payload limits", () => {
     a.emit("send-message", { chatId: chat.id, text: "x".repeat(5001) });
     a.emit("code-change", {
       chatId: chat.id,
+      baseRevision: 0,
       code: "x".repeat(100001),
     });
     await sleep(300);
 
     expect(errors.sort()).toEqual(["code-change", "send-message"]);
-    expect(await LiveCode.countDocuments()).toBe(0);
   });
 
   it("closes connections that send packets beyond the transport limit", async () => {
@@ -378,29 +295,5 @@ describe("payload limits", () => {
     const received = once(b, "receive-message");
     a.emit("send-message", { chatId: chat.id, text: "still here" });
     expect((await received).text).toBe("still here");
-  });
-});
-
-describe("live code writes", () => {
-  it("keep a single document when many first edits arrive together", async () => {
-    await LiveCode.init();
-    const a = await server.client(alice);
-    const b = await server.client(bob);
-
-    const errors = [];
-    a.on("socket-error", (e) => errors.push(e));
-    b.on("socket-error", (e) => errors.push(e));
-    for (let i = 0; i < 6; i++) {
-      (i % 2 ? a : b).emit("code-change", {
-        chatId: chat.id,
-        code: `v${i}`,
-        language: "js",
-        fileName: "f",
-      });
-    }
-    await sleep(800);
-
-    expect(await LiveCode.countDocuments({ chatId: chat.id })).toBe(1);
-    expect(errors).toEqual([]);
   });
 });

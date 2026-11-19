@@ -4,6 +4,10 @@ import app from "../../app.js";
 import { setupSocketIO } from "../../socket.js";
 import { closeRedis } from "../../config/redis.js";
 import { presence, settlePresence } from "../../services/presenceService.js";
+import {
+  flushLiveCode,
+  resetLiveCode,
+} from "../../services/liveCodeService.js";
 
 export async function startSocketServer(options) {
   const server = http.createServer(app);
@@ -48,12 +52,17 @@ export async function startSocketServer(options) {
       });
     },
     async close() {
+      // REST handlers must not keep pushing to a server that is gone.
+      if (app.get("io") === io) app.set("io", undefined);
       clients.forEach((c) => c.close());
       io.close();
       await new Promise((resolve) => server.close(() => resolve()));
       // Presence updates of the closed sockets write to the database.
       await settlePresence();
       presence.reset();
+      // Unsaved live code edits would write to the database after it is gone.
+      await flushLiveCode();
+      resetLiveCode();
       // setupSocketIO starts the shared Redis client. Release it, or the next
       // test file in the same worker inherits a client it did not ask for.
       await closeRedis();

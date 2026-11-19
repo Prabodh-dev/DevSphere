@@ -1,10 +1,10 @@
 import mongoose from "mongoose";
 import Chat from "../models/Chat.js";
-import LiveCode from "../models/LiveCode.js";
 import Message from "../models/Message.js";
 import User from "../models/User.js";
 import { badRequest, forbidden, notFound } from "../utils/httpError.js";
 import { paginate } from "../utils/pagination.js";
+import { getLiveCodeDocument } from "./liveCodeService.js";
 import { logger } from "../utils/logger.js";
 import { chatRoom, userRoom } from "../utils/rooms.js";
 
@@ -129,5 +129,5 @@ export async function listMessages(userId, chatId, { limit, cursor }) {
 // The shared code document of a chat, or null.
 export async function getLiveCode(userId, chatId) {
   const chat = await loadChatForMember(chatId, userId);
-  return LiveCode.findOne({ chatId: chat._id });
+  return getLiveCodeDocument(chat._id);
 }

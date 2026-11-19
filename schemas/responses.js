@@ -279,6 +279,11 @@ export const LiveCodeDoc = z
     code: z.string(),
     language: z.string(),
     fileName: z.string(),
+    revision: z.number().int().openapi({
+      description:
+        "Goes up by one for every accepted edit; edits name the revision they were made on",
+      example: 4,
+    }),
     updatedBy: id(ID).optional(),
     createdAt: date(WHEN),
     updatedAt: date(WHEN),

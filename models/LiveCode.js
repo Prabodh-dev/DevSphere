@@ -12,6 +12,8 @@ const liveCodeSchema = new mongoose.Schema(
     code: { type: String, required: true },
     language: { type: String, default: "plaintext", maxlength: 50 },
     fileName: { type: String, default: "main", maxlength: 100 },
+    // Counts accepted edits. Edits name the revision they were made on.
+    revision: { type: Number, default: 0, min: 0 },
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   },
   { timestamps: true }

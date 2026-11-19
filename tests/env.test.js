@@ -117,6 +117,7 @@ describe("config", () => {
       mongoAutoIndex: true,
       docsEnabled: true,
       redis: { url: "", keyPrefix: "" },
+      liveCode: { flushMs: 2000 },
       rateLimit: { general: 300, auth: 10, refresh: 60, highlight: 30 },
       aws: { accessKey: "", secretKey: "", region: "", bucket: "" },
       mediaUrlTtlSeconds: 300,

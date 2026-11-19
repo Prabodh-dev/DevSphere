@@ -160,6 +160,14 @@ const variables = [
     fallback: () => 30,
   },
 
+  // How long a live code edit waits for further edits before it is saved.
+  {
+    name: "LIVE_CODE_FLUSH_MS",
+    type: count(0),
+    message: "LIVE_CODE_FLUSH_MS must be a whole number of milliseconds",
+    fallback: () => 2000,
+  },
+
   {
     name: "AWS_ACCESS_KEY",
     type: text,
@@ -258,6 +266,7 @@ export function loadConfig(env = process.env) {
       mongoAutoIndex: raw.MONGO_AUTO_INDEX,
       docsEnabled: raw.DOCS_ENABLED,
       redis: { url: raw.REDIS_URL, keyPrefix: raw.REDIS_KEY_PREFIX },
+      liveCode: { flushMs: raw.LIVE_CODE_FLUSH_MS },
       rateLimit: {
         general: raw.RATE_LIMIT_MAX,
         auth: raw.AUTH_RATE_LIMIT_MAX,
