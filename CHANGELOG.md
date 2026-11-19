@@ -43,6 +43,17 @@
 - CI: concurrency cancels superseded runs, a `pnpm audit --prod` step (high and critical), a Docker job that builds the image, starts the compose stack, waits for `/readyz` and checks register and login, a CodeQL workflow, Dependabot for npm (pnpm), GitHub Actions and Docker, and actions pinned to current commit SHAs.
 - `dotenv` no longer prints a banner, so log output is clean.
 
+### Real-time and scale
+
+- Sending a message over REST or the `send-message` socket event goes through one service. It saves the message, updates the chat's latest message and delivers it from the server to the chat room and to each member's own room. A REST message now reaches connected members live. Blocked members and people who left or were removed get nothing. The socket event takes the REST body and is acknowledged with the stored message id and time. Events accept an optional acknowledgement callback.
+- With `REDIS_URL`, Socket.IO uses the Redis adapter, so several instances share rooms and events. Without it the app behaves as before. `/readyz` still reports Redis as a field only.
+- With `REDIS_URL`, the HTTP and socket rate limits are counted in Redis and hold across instances. Redis trouble falls back to in-memory counting with one warning. The socket limit is now counted per user rather than per connection.
+- Presence counts connections per user (Redis, or memory without it), so several tabs and instances work. `user-online` and `user-offline` are sent for the first and last connection only. The last seen time is stored on the user (`lastSeenAt`). New `GET /api/v1/presence?ids=` (up to 100 ids) for yourself, people you share a chat with and people you follow.
+- Live code documents have a `revision`. Edits carry `baseRevision`; a stale one gets a `code-conflict` with the current document. Accepted edits are broadcast with the new revision, and saved to MongoDB after `LIVE_CODE_FLUSH_MS`, on disconnect and on shutdown. No migration is needed: a stored document without a revision counts as revision 0.
+- Read markers per member and chat (`PUT /api/v1/chat/{chatId}/read`, `mark-read`), forward only, announced as `read-receipt`, and `unreadCount` in the chat list. New `chatreads` collection (run `pnpm db:indexes`).
+- Removing a member, blocking a user or ending a login now also closes the local sockets when Redis is unreachable.
+- Docs: a Scaling section in the README, and the new events in `docs/socket-events.md`.
+
 ### Breaking
 
 - Access tokens now expire after 15 minutes. Tokens issued before this change are rejected, so everyone signs in once more.
@@ -59,3 +70,6 @@
 - Errors: `{ message }` becomes `{ error: { code, message, details? } }`; the `socket-error` event is `{ event, error }`.
 - Lists: plain arrays and `{ count, statuses }` become `{ items, nextCursor }`; `GET /api/v1/chat/message/:chatId` is newest first.
 - The docs and OpenAPI routes are not served in production unless `DOCS_ENABLED=true`.
+- `send-message` no longer relays arbitrary payloads: it takes `{ chatId, type?, text?, code? }`, saves the message, and `receive-message` carries the stored message. The sender's own sockets receive it too. `group-message` is kept as another name for it.
+- `code-change` needs `baseRevision`, and `code-update` carries the revision, the chat id and the editor.
+- The socket rate limit is shared by all of a user's connections.

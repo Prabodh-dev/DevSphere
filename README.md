@@ -61,7 +61,8 @@ Copy `.env.example` to `.env` and set:
 | `REFRESH_TOKEN_TTL_DAYS`   | no          | Refresh token lifetime in days, default `30`                                                         |
 | `COOKIE_SECURE`            | no          | `true` when served over HTTPS, so the refresh cookie is `Secure`                                     |
 | `REFRESH_RATE_LIMIT_MAX`   | no          | Refresh requests per 15 minutes, default `60`                                                        |
-| `REDIS_URL`                | no          | Redis URL for online presence; the app works without it                                              |
+| `REDIS_URL`                | no          | Redis URL, to run several instances (see Scaling); the app works without it                          |
+| `LIVE_CODE_FLUSH_MS`       | no          | Milliseconds live code edits wait before they are saved, default `2000`                              |
 | `REDIS_KEY_PREFIX`         | no          | Prefix for the Redis keys the app writes, default none                                               |
 | `RATE_LIMIT_MAX`           | no          | Requests per 15 minutes for `/api`, default `300`                                                    |
 | `AUTH_RATE_LIMIT_MAX`      | no          | Login and register requests per 15 minutes, default `10`                                             |
@@ -140,6 +141,8 @@ erDiagram
     Chat |o--o| Message : "latestMessage"
     User ||--o{ Message : "sends"
     Chat ||--o| LiveCode : "shared code"
+    Chat ||--o{ ChatRead : "read markers"
+    User ||--o{ ChatRead : "has read up to"
     User ||--o{ Status : "posts"
     User ||--o{ Notification : "receives"
     User ||--o{ Report : "files"
@@ -151,6 +154,7 @@ erDiagram
         string[] tags
         string role
         boolean isBlocked
+        date lastSeenAt
     }
     UserProfile {
         string bio
@@ -185,6 +189,13 @@ erDiagram
     LiveCode {
         id chatId
         string code
+        number revision
+    }
+    ChatRead {
+        id chat
+        id user
+        id lastReadMessage
+        date lastReadAt
     }
     Status {
         string type
@@ -338,6 +349,44 @@ Rooms are managed by the server. A client asks to join a chat with
 (`receive-notification`) are created by the server and delivered to the
 signed-in user.
 
+Messages are sent with `POST /api/v1/chat/message` or the `send-message` event.
+Both are handled by the server, which saves the message and delivers it to the
+chat's members; clients never choose the recipients. The socket event is
+acknowledged with the stored message id and time. Live code edits carry a
+revision, and a stale edit is answered with a conflict and the current
+document. Read markers, read receipts and online presence are described in
+[docs/socket-events.md](docs/socket-events.md).
+
+## Scaling
+
+One instance needs nothing but MongoDB. To run several instances behind a load
+balancer, set `REDIS_URL` to the same Redis on all of them (and `REDIS_KEY_PREFIX`
+if the Redis is shared with something else).
+
+| Needs Redis to work across instances | Without Redis                                     |
+| ------------------------------------ | ------------------------------------------------- |
+| Socket.IO rooms and events (adapter) | Each instance only reaches its own sockets        |
+| HTTP and socket rate limits          | Each instance counts on its own, in memory        |
+| Online presence (connection counts)  | Each instance only knows its own connections      |
+| Live code working copies             | Each instance keeps its own, so edits can diverge |
+
+Everything else (accounts, chats, messages, read markers, last seen times) is
+stored in MongoDB and is shared anyway.
+
+- Socket.IO clients start with HTTP long polling before upgrading to a
+  WebSocket, so the load balancer needs sticky sessions, or clients should
+  connect with `transports: ["websocket"]`.
+- If Redis goes down the instances keep running. Rate limits and presence fall
+  back to memory with a warning in the log, the adapter reconnects by itself,
+  and removing a member, blocking a user or ending a login still closes the
+  sockets of the instance that handles the request.
+- Presence entries expire if an instance disappears without closing its
+  connections, so users do not stay online forever. Live code edits not yet
+  written to MongoDB when an instance is killed are lost (at most
+  `LIVE_CODE_FLUSH_MS` of typing).
+- `/readyz` reports Redis as a field only: a Redis outage does not make an
+  instance unready.
+
 ## API
 
 All paths start with `/api/v1`. Unversioned `/api/...` paths answer 404.
@@ -372,10 +421,11 @@ Other areas
 
 - `/profile`: `POST /` (bio, links, tags and an optional `avatar` file), `GET /me`, `GET /:userId` (public). Responses include follower and following counts.
 - `/users`: follow and unfollow, paged `GET /:id/followers` and `/following`, `PATCH /me/tags`, paged `GET /?tag=`.
-- `/chat`: `POST /access`, paged `GET /`, `POST /message`, paged `GET /message/:chatId`.
+- `/chat`: `POST /access`, paged `GET /` (with `unreadCount`), `POST /message`, paged `GET /message/:chatId`, `PUT /:chatId/read` (move your read marker forward).
+- `/presence`: `GET /?ids=a,b,c` (up to 100 user ids): online state and last seen time of yourself, people you share a chat with and people you follow. Other ids are left out.
 - `/group`: `POST /create`, `PATCH /add`, `/remove`, `/rename`.
 - `/status`: `POST /` (text, image or video), paged `GET /feed`.
-- `/snippets/highlight` (public, rate limited), `/live-code/:chatId`, paged `/notifications`, `/report` (the target must exist; one open report per user and target).
+- `/snippets/highlight` (public, rate limited), `/live-code/:chatId` (with its `revision`), paged `/notifications`, `/report` (the target must exist; one open report per user and target).
 - `/admin` (admin role only): paged users, block and unblock, paged `GET /reports?status=open|resolved|all`, `DELETE /remove/:type/:id` (message, status, or user, which blocks the account).
 - `GET /healthz` (not versioned): process and database status.
 
