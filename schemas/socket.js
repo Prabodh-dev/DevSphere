@@ -12,3 +12,7 @@ export const codeChangePayload = z.object({
   language: z.string().max(50).optional(),
   fileName: z.string().max(100).optional(),
 });
+export const markReadPayload = z.object({
+  chatId: objectId,
+  messageId: objectId,
+});

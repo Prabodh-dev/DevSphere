@@ -75,6 +75,7 @@ be a member of the chat; `join-chat` and `join-live-code` are refused otherwise.
 | `join-chat`      | `chatId` (string)                        | Subscribes the socket to the messages and typing events of the chat                                                |
 | `send-message`   | `{ chatId, type?, text?, code? }`        | Saves a message (the same body as `POST /api/v1/chat/message`) and delivers it to the members as `receive-message` |
 | `group-message`  | `{ chatId, type?, text?, code? }`        | The older name of `send-message`. It does the same                                                                 |
+| `mark-read`      | `{ chatId, messageId }`                  | Marks the chat as read up to a message (see Read state). Replies with the new state                                |
 | `typing`         | `chatId` (string)                        | Tells the other members that the user is typing                                                                    |
 | `stop-typing`    | `chatId` (string)                        | Tells the other members that the user stopped typing                                                               |
 | `join-live-code` | `{ chatId }`                             | Subscribes to the shared code document of the chat. If one exists it is sent back as `load-code`                   |
@@ -94,6 +95,7 @@ Payload rules:
 | Event                  | Payload                                         | When                                                                                       |
 | ---------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `receive-message`      | the stored message                              | A message was sent to a chat the user is a member of (see Sending messages)                |
+| `read-receipt`         | `{ chatId, userId, messageId, readAt }`         | A member's read marker moved forward in a chat the socket joined (see Read state)          |
 | `typing`               | user id (string)                                | A member of a joined chat is typing                                                        |
 | `stop-typing`          | user id (string)                                | A member of a joined chat stopped typing                                                   |
 | `user-online`          | user id (string)                                | Another user connected                                                                     |
@@ -115,6 +117,21 @@ cannot send notifications.
 of every current member, once per socket. The sender's own sockets receive it
 too, so a second tab stays in step; use `_id` to tell it from a copy you
 already show.
+
+## Read state
+
+The server keeps, for each member of a chat, the last message they have read.
+It is set with `mark-read` or `PUT /api/v1/chat/{chatId}/read`, and the chat
+list (`GET /api/v1/chat`) shows `unreadCount` for each chat: the messages from
+other members that come after it.
+
+- Only members can set it, and only forward. Marking an older message, or the
+  one already marked, changes nothing and is not announced.
+- A change is sent to the chat room as `read-receipt`:
+  `{ chatId, userId, messageId, readAt }`.
+- The reply to `mark-read` is `{ ok: true, chatId, messageId, unreadCount,
+changed }`. `messageId` is the marker after the call, which can be newer than
+  the one sent.
 
 ## Acknowledgements
 

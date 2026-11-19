@@ -45,8 +45,10 @@ export const statusView = async (status) => {
 };
 
 // Members are shown with their public fields only.
-export const chatView = async (chat) => {
+// unreadCount: messages from others the user has not read yet.
+export const chatView = async (chat, unreadCount = 0) => {
   const plain = chat.toObject();
+  plain.unreadCount = unreadCount;
   plain.members = await Promise.all(
     chat.members.map((member) =>
       member.username !== undefined ? publicUserView(member) : member

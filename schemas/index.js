@@ -93,6 +93,8 @@ export const sendMessageBody = z
     }
   });
 
+export const markReadBody = z.object({ messageId: objectId });
+
 // ---- groups ----
 export const createGroupBody = z.object({
   chatName: text(100),

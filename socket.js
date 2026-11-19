@@ -26,6 +26,7 @@ import { logger } from "./utils/logger.js";
 import { socketConnections, socketEvents } from "./utils/metrics.js";
 import { isSessionActive } from "./services/sessionService.js";
 import { sendMessage } from "./services/chatService.js";
+import { markRead } from "./services/readService.js";
 import { SharedStore } from "./utils/rateLimitStore.js";
 import { errorBody } from "./utils/apiError.js";
 import { SocketInputError, parse, socketError } from "./socket/errors.js";
@@ -33,6 +34,7 @@ import {
   chatIdPayload,
   codeChangePayload,
   joinLiveCodePayload,
+  markReadPayload,
   messagePayload,
 } from "./schemas/socket.js";
 
@@ -210,6 +212,14 @@ export const setupSocketIO = (server, options = {}) => {
     on("send-message", send);
     // Older name for the same thing.
     on("group-message", send);
+
+    // Moves the user's read marker forward and tells the chat. The reply is
+    // the same as PUT /api/v1/chat/{chatId}/read.
+    on("mark-read", async (data) => {
+      const body = parse(markReadPayload, data);
+      await requireMember(body.chatId);
+      return markRead(userId, body, io);
+    });
 
     on("typing", async (chatId) => {
       const id = await requireMember(chatId);

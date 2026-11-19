@@ -343,6 +343,20 @@ route({
   errors: [403, 404],
 });
 route({
+  method: "put",
+  path: "/chat/{chatId}/read",
+  tags: ["Chat"],
+  summary: "Mark a chat as read up to a message",
+  description:
+    "Only members can do this, and the marker only moves forward: an older message changes nothing. A change is sent to the chat as a `read-receipt` socket event.",
+  auth: "bearer",
+  params: S.chatIdParams,
+  body: S.markReadBody,
+  bodyExample: { messageId: "665f1c2a9b1e8a0012a4c010" },
+  response: R.ReadState,
+  errors: [403, 404],
+});
+route({
   method: "get",
   path: "/chat/message/{chatId}",
   tags: ["Chat"],

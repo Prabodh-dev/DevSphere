@@ -4,12 +4,14 @@ import {
   fetchChats,
   sendMessage,
   getMessages,
+  markRead,
 } from "../controllers/chatController.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
 import validate from "../middlewares/validate.js";
 import {
   accessChatBody,
   chatIdParams,
+  markReadBody,
   pageQuery,
   sendMessageBody,
 } from "../schemas/index.js";
@@ -34,6 +36,13 @@ router.get(
   authMiddleware,
   validate({ params: chatIdParams, query: pageQuery }),
   getMessages
+);
+
+router.put(
+  "/:chatId/read",
+  authMiddleware,
+  validate({ params: chatIdParams, body: markReadBody }),
+  markRead
 );
 
 export default router;

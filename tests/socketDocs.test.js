@@ -28,6 +28,7 @@ const EMITTING_FILES = [
   "socket.js",
   "services/notificationService.js",
   "services/chatService.js",
+  "services/readService.js",
 ];
 
 function emittedEvents() {
