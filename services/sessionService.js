@@ -4,7 +4,7 @@ import User from "../models/User.js";
 import { HttpError, accountBlocked, unauthorized } from "../utils/httpError.js";
 import { config } from "../config/index.js";
 import { newRefreshToken, hashToken } from "../utils/tokens.js";
-import { sessionRoom } from "../utils/rooms.js";
+import { disconnectSessions } from "../utils/socketOps.js";
 import { countRefresh } from "../utils/metrics.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -42,12 +42,7 @@ export const isSessionActive = async (familyId, userId) =>
   );
 
 // Disconnects sockets that were opened with this session's access token.
-export const closeSessionSockets = (io, familyIds) => {
-  if (!io) return;
-  for (const familyId of familyIds) {
-    io.in(sessionRoom(familyId)).disconnectSockets(true);
-  }
-};
+export const closeSessionSockets = disconnectSessions;
 
 // Revokes one login. Returns true if anything was still active.
 export async function revokeFamily(familyId, io) {

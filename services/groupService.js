@@ -2,7 +2,8 @@ import mongoose from "mongoose";
 import Chat from "../models/Chat.js";
 import User from "../models/User.js";
 import { badRequest, forbidden, notFound } from "../utils/httpError.js";
-import { chatRoom, liveCodeRoom, userRoom } from "../utils/rooms.js";
+import { chatRoom, liveCodeRoom } from "../utils/rooms.js";
+import { removeUserFromRooms } from "../utils/socketOps.js";
 import { notifyUser } from "./notificationService.js";
 
 const sameId = (a, b) => String(a) === String(b);
@@ -95,10 +96,7 @@ export async function removeMember(actor, { chatId, userId }, io) {
   await chat.save();
 
   // Stop delivering this chat to the removed member's open connections.
-  io?.in(userRoom(userId)).socketsLeave([
-    chatRoom(chat.id),
-    liveCodeRoom(chat.id),
-  ]);
+  removeUserFromRooms(io, userId, [chatRoom(chat.id), liveCodeRoom(chat.id)]);
 }
 
 export async function renameGroup(actor, { chatId, newName }) {
