@@ -45,10 +45,7 @@ describe("socket server without Redis", () => {
     await sleep(150);
 
     const received = once(b, "receive-message");
-    a.emit("send-message", {
-      chatId: chat.id,
-      message: { text: "no redis needed" },
-    });
-    expect(await received).toEqual({ text: "no redis needed" });
+    a.emit("send-message", { chatId: chat.id, text: "no redis needed" });
+    expect((await received).text).toBe("no redis needed");
   });
 });

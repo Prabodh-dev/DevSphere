@@ -22,9 +22,16 @@ function handledEvents() {
     .filter((name) => !BUILT_IN.has(name));
 }
 
-// Events the server sends: .emit("name", ...) in the socket code and notifications.
+// Events the server sends: .emit("name", ...) in the socket code and the
+// services that push to sockets.
+const EMITTING_FILES = [
+  "socket.js",
+  "services/notificationService.js",
+  "services/chatService.js",
+];
+
 function emittedEvents() {
-  const source = read("socket.js") + read("services/notificationService.js");
+  const source = EMITTING_FILES.map(read).join("\n");
   return [...source.matchAll(/\.emit\(\s*"([\w-]+)"/g)]
     .map((m) => m[1])
     .filter((name) => !BUILT_IN.has(name));
@@ -72,8 +79,9 @@ describe("docs/socket-events.md", () => {
       "socket-error",
       "RATE_LIMITED",
       "512 KB",
-      "16 KB",
+      "5000",
       "100000",
+      "acknowledgement",
     ]) {
       expect(doc, text).toContain(text);
     }
@@ -83,7 +91,6 @@ describe("docs/socket-events.md", () => {
     const socket = read("socket.js");
     const schema = read("schemas/socket.js");
     expect(socket).toMatch(/MAX_PACKET_BYTES = 512 \* 1024/);
-    expect(schema).toMatch(/MAX_MESSAGE_BYTES = 16 \* 1024/);
     expect(schema).toMatch(/code: z\.string\(\)\.max\(100000\)/);
     expect(socket).toMatch(/max: 100, windowMs: 10 \* 1000/);
   });

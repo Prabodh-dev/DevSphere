@@ -1,18 +1,10 @@
 import { z } from "./openapi.js";
 import { objectId } from "./common.js";
-
-const MAX_MESSAGE_BYTES = 16 * 1024;
-
-// The message body is relayed as sent, so only its shape and size are checked.
-const message = z
-  .union([z.string(), z.record(z.string(), z.unknown())])
-  .refine(
-    (value) => JSON.stringify(value).length <= MAX_MESSAGE_BYTES,
-    "message is too large"
-  );
+import { sendMessageBody } from "./index.js";
 
 export const chatIdPayload = objectId;
-export const messagePayload = z.object({ chatId: objectId, message });
+// Same shape and limits as POST /chat/message.
+export const messagePayload = sendMessageBody;
 export const joinLiveCodePayload = z.object({ chatId: objectId });
 export const codeChangePayload = z.object({
   chatId: objectId,

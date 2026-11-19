@@ -5,6 +5,8 @@ import Message from "../models/Message.js";
 import User from "../models/User.js";
 import { badRequest, forbidden, notFound } from "../utils/httpError.js";
 import { paginate } from "../utils/pagination.js";
+import { logger } from "../utils/logger.js";
+import { chatRoom, userRoom } from "../utils/rooms.js";
 
 // Loads a chat and makes sure the user belongs to it.
 // 404 for a missing chat, 403 for non-members. The id must already be validated.
@@ -58,7 +60,34 @@ export function listChats(userId, { limit, cursor }) {
   });
 }
 
-export async function sendMessage(userId, { chatId, type, text, code }) {
+// Tells the chat's members about a new message, from the server. It goes to
+// the chat room and to every member's own room (a socket in both gets it
+// once). Blocked members are left out, and so is anyone who is no longer a
+// member, because only the current member list is addressed.
+async function deliverMessage(io, chat, message) {
+  if (!io) return;
+  try {
+    const members = await User.find({
+      _id: mongoose.trusted({ $in: chat.members }),
+    }).select("isBlocked");
+    const allowed = members.filter((member) => !member.isBlocked);
+    const blocked = members.filter((member) => member.isBlocked);
+
+    let target = io.to(chatRoom(chat.id));
+    for (const member of allowed) target = target.to(userRoom(member.id));
+    if (blocked.length) {
+      target = target.except(blocked.map((member) => userRoom(member.id)));
+    }
+    target.emit("receive-message", message.toJSON());
+  } catch (err) {
+    // The message is saved; a failed push must not fail the request.
+    logger.warn({ err: err.message }, "Could not deliver message");
+  }
+}
+
+// The one way a message is sent, for REST and sockets: saves it, moves the
+// chat's latest message, and delivers it to the members.
+export async function sendMessage(userId, { chatId, type, text, code }, io) {
   const chat = await loadChatForMember(chatId, userId);
 
   const messageData = { chat: chat._id, sender: userId, type };
@@ -72,13 +101,16 @@ export async function sendMessage(userId, { chatId, type, text, code }) {
     messageData.text = text;
   }
 
-  const message = await Message.create(messageData);
+  const created = await Message.create(messageData);
   // Also moves the chat to the top of the list (its updatedAt changes).
-  await Chat.findByIdAndUpdate(chat._id, { latestMessage: message._id });
+  await Chat.findByIdAndUpdate(chat._id, { latestMessage: created._id });
 
-  return Message.findById(message._id)
+  const message = await Message.findById(created._id)
     .populate("sender", "username")
     .populate("chat", "isGroupChat chatName");
+
+  await deliverMessage(io, chat, message);
+  return message;
 }
 
 // Newest first; ask for the cursor of a page to get the older messages.

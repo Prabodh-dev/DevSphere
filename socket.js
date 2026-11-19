@@ -15,6 +15,8 @@ import { verifyAccessToken } from "./utils/tokens.js";
 import { logger } from "./utils/logger.js";
 import { socketConnections, socketEvents } from "./utils/metrics.js";
 import { isSessionActive } from "./services/sessionService.js";
+import { sendMessage } from "./services/chatService.js";
+import { errorBody } from "./utils/apiError.js";
 import { SocketInputError, parse, socketError } from "./socket/errors.js";
 import {
   chatIdPayload,
@@ -141,24 +143,31 @@ export const setupSocketIO = (server, options = {}) => {
     });
 
     // Wraps a handler so bad input or a failing query is reported to the
-    // client and logged, instead of becoming an unhandled rejection.
+    // client and logged, instead of becoming an unhandled rejection. A client
+    // may pass an acknowledgement callback as the last argument: it receives
+    // { ok: true, ...result } or { ok: false, error }. Without one, errors
+    // arrive as socket-error events.
     const on = (event, handler) => {
       socket.on(event, async (...args) => {
         socketEvents.inc({ event });
+        const ack = typeof args.at(-1) === "function" ? args.pop() : null;
+        const fail = (code, message, details) => {
+          if (ack) ack({ ok: false, ...errorBody(code, message, details) });
+          else
+            socket.emit(
+              "socket-error",
+              socketError(event, code, message, details)
+            );
+        };
         try {
-          await handler(...args);
+          const result = await handler(...args);
+          ack?.({ ok: true, ...result });
         } catch (err) {
           if (err instanceof SocketInputError) {
-            socket.emit(
-              "socket-error",
-              socketError(event, err.code, err.message, err.details)
-            );
+            fail(err.code, err.message, err.details);
           } else {
             log.error({ err, event }, "socket event failed");
-            socket.emit(
-              "socket-error",
-              socketError(event, "INTERNAL_ERROR", "Request failed")
-            );
+            fail("INTERNAL_ERROR", "Request failed");
           }
         }
       });
@@ -179,17 +188,21 @@ export const setupSocketIO = (server, options = {}) => {
       socket.join(chatRoom(id));
     });
 
-    on("send-message", async (data) => {
-      const { chatId, message } = parse(messagePayload, data);
-      await requireMember(chatId);
-      socket.to(chatRoom(chatId)).emit("receive-message", message);
-    });
-
-    on("group-message", async (data) => {
-      const { chatId, message } = parse(messagePayload, data);
-      await requireMember(chatId);
-      io.to(chatRoom(chatId)).emit("receive-message", message);
-    });
+    // Saves the message and delivers it from the server. The sender gets an
+    // acknowledgement with the stored id and time.
+    const send = async (data) => {
+      const body = parse(messagePayload, data);
+      await requireMember(body.chatId);
+      const message = await sendMessage(userId, body, io);
+      return {
+        id: message.id,
+        chatId: body.chatId,
+        createdAt: message.createdAt,
+      };
+    };
+    on("send-message", send);
+    // Older name for the same thing.
+    on("group-message", send);
 
     on("typing", async (chatId) => {
       const id = await requireMember(chatId);

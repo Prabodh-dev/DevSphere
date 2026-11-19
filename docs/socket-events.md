@@ -5,8 +5,12 @@ delivery, typing indicators, presence, live code editing and notifications. The
 REST API is described in the OpenAPI document (`/api/v1/openapi.json`, page at
 `/api/v1/docs`).
 
-Messages are saved through the REST API (`POST /api/v1/chat/message`); the
-socket events only deliver them to other connected members.
+Sending a message, over REST (`POST /api/v1/chat/message`) or with the
+`send-message` socket event, goes through the same server code. It saves the
+message, updates the chat's latest message and then delivers it from the
+server. Clients never choose who receives a message: it goes to the members of
+the chat, whichever socket they use and whether or not they joined the chat
+room. Blocked members and people who are no longer members do not receive it.
 
 ## Connecting
 
@@ -66,20 +70,22 @@ of the event that caused it:
 Chat ids are 24 character hexadecimal ids. All chat events require the user to
 be a member of the chat; `join-chat` and `join-live-code` are refused otherwise.
 
-| Event            | Payload                                  | What it does                                                                                                          |
-| ---------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `join-chat`      | `chatId` (string)                        | Subscribes the socket to the messages and typing events of the chat                                                   |
-| `send-message`   | `{ chatId, message }`                    | Delivers `message` as `receive-message` to the other members who joined the chat. The sender does not receive it back |
-| `group-message`  | `{ chatId, message }`                    | Like `send-message`, but also delivered to the sender                                                                 |
-| `typing`         | `chatId` (string)                        | Tells the other members that the user is typing                                                                       |
-| `stop-typing`    | `chatId` (string)                        | Tells the other members that the user stopped typing                                                                  |
-| `join-live-code` | `{ chatId }`                             | Subscribes to the shared code document of the chat. If one exists it is sent back as `load-code`                      |
-| `code-change`    | `{ chatId, code, language?, fileName? }` | Saves the shared code document and sends `code-update` to the other members who joined it                             |
+| Event            | Payload                                  | What it does                                                                                                       |
+| ---------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `join-chat`      | `chatId` (string)                        | Subscribes the socket to the messages and typing events of the chat                                                |
+| `send-message`   | `{ chatId, type?, text?, code? }`        | Saves a message (the same body as `POST /api/v1/chat/message`) and delivers it to the members as `receive-message` |
+| `group-message`  | `{ chatId, type?, text?, code? }`        | The older name of `send-message`. It does the same                                                                 |
+| `typing`         | `chatId` (string)                        | Tells the other members that the user is typing                                                                    |
+| `stop-typing`    | `chatId` (string)                        | Tells the other members that the user stopped typing                                                               |
+| `join-live-code` | `{ chatId }`                             | Subscribes to the shared code document of the chat. If one exists it is sent back as `load-code`                   |
+| `code-change`    | `{ chatId, code, language?, fileName? }` | Saves the shared code document and sends `code-update` to the other members who joined it                          |
 
 Payload rules:
 
-- `message` is a string or an object, and at most 16 KB when written as JSON.
-  It is passed on as sent.
+- `send-message` follows the REST body: `type` is `text` (default), `media` or
+  `code`; `text` is 1 to 5000 characters; a code message carries
+  `code: { language?, content }` with at most 100000 characters of content.
+  Other fields, such as a list of recipients, are ignored.
 - `code` is a string of at most 100000 characters. `language` is at most 50
   characters (default `plaintext`) and `fileName` at most 100 (default `main`).
 
@@ -87,7 +93,7 @@ Payload rules:
 
 | Event                  | Payload                                         | When                                                                                       |
 | ---------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `receive-message`      | the `message` that was sent                     | A member sent a message to a chat the socket joined                                        |
+| `receive-message`      | the stored message                              | A message was sent to a chat the user is a member of (see Sending messages)                |
 | `typing`               | user id (string)                                | A member of a joined chat is typing                                                        |
 | `stop-typing`          | user id (string)                                | A member of a joined chat stopped typing                                                   |
 | `user-online`          | user id (string)                                | Another user connected                                                                     |
@@ -100,6 +106,31 @@ Payload rules:
 `receive-notification` is only ever delivered to the sockets of the user it is
 for, in the same shape as the items of `GET /api/v1/notifications`. Clients
 cannot send notifications.
+
+## Sending messages
+
+`receive-message` carries the stored message, in the same shape as the items of
+`GET /api/v1/chat/message/{chatId}` (`_id`, `chat`, `sender`, `type`, `text` or
+`code`, `createdAt`). It is delivered to the chat room and to the private room
+of every current member, once per socket. The sender's own sockets receive it
+too, so a second tab stays in step; use `_id` to tell it from a copy you
+already show.
+
+## Acknowledgements
+
+Every client to server event may be sent with an acknowledgement callback as
+its last argument. The server calls it with `{ ok: true, ...result }`, or with
+`{ ok: false, error: { code, message, details? } }` when the event is refused.
+When a callback is given the error is not also sent as `socket-error`.
+
+```js
+socket.emit("send-message", { chatId, text: "hello" }, (reply) => {
+  // { ok: true, id, chatId, createdAt }
+});
+```
+
+`send-message` and `group-message` reply with the stored message's `id`, its
+`chatId` and its `createdAt`.
 
 ## Limits
 

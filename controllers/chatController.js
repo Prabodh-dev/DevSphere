@@ -17,7 +17,11 @@ export const fetchChats = async (req, res) => {
 };
 
 export const sendMessage = async (req, res) => {
-  const message = await chats.sendMessage(req.user._id, req.valid.body);
+  const message = await chats.sendMessage(
+    req.user._id,
+    req.valid.body,
+    req.app.get("io")
+  );
   res.status(201).json(message);
 };
 

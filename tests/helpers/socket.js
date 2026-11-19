@@ -84,3 +84,27 @@ export function never(socket, event, ms = 400) {
     }, ms);
   });
 }
+
+// Emits an event with an acknowledgement callback and resolves with the reply.
+export function emitAck(socket, event, payload, ms = 3000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`no acknowledgement for "${event}"`)),
+      ms
+    );
+    socket.emit(event, payload, (reply) => {
+      clearTimeout(timer);
+      resolve(reply);
+    });
+  });
+}
+
+// Every payload of `event` received during the next `ms`.
+export async function collect(socket, event, ms = 400) {
+  const received = [];
+  const onEvent = (payload) => received.push(payload);
+  socket.on(event, onEvent);
+  await sleep(ms);
+  socket.off(event, onEvent);
+  return received;
+}
