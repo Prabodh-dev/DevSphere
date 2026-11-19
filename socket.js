@@ -12,10 +12,10 @@ import {
   userRoom,
 } from "./utils/rooms.js";
 import { verifyAccessToken } from "./utils/tokens.js";
-import { errorBody } from "./utils/apiError.js";
 import { logger } from "./utils/logger.js";
 import { socketConnections, socketEvents } from "./utils/metrics.js";
 import { isSessionActive } from "./services/sessionService.js";
+import { SocketInputError, parse, socketError } from "./socket/errors.js";
 import {
   chatIdPayload,
   codeChangePayload,
@@ -32,36 +32,6 @@ const MAX_PACKET_BYTES = 512 * 1024;
 const DEFAULT_RATE_LIMIT = { max: 100, windowMs: 10 * 1000 };
 // Events dropped in a row before the connection is closed.
 const MAX_VIOLATIONS = 50;
-
-// Raised for bad client input; the message is safe to send back.
-class SocketInputError extends Error {
-  constructor(message, code = "VALIDATION_ERROR", details) {
-    super(message);
-    this.code = code;
-    this.details = details;
-  }
-}
-
-// socket-error payload: { event, error: { code, message, details? } }
-const socketError = (event, code, message, details) => ({
-  event,
-  ...errorBody(code, message, details),
-});
-
-const parse = (schema, payload) => {
-  const result = schema.safeParse(payload);
-  if (!result.success) {
-    throw new SocketInputError(
-      "Invalid payload",
-      "VALIDATION_ERROR",
-      result.error.issues.map((issue) => ({
-        field: issue.path.join("."),
-        message: issue.message,
-      }))
-    );
-  }
-  return result.data;
-};
 
 // Presence is best effort: a Redis problem must never break a socket.
 const setPresence = async (command, userId) => {
