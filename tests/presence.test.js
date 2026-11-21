@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { createClient } from "redis";
+import { createTestRedis } from "./helpers/redis.js";
 import { startSocketServer, once, never, sleep } from "./helpers/socket.js";
 import { connectTestDb, clearTestDb, disconnectTestDb } from "./helpers/db.js";
 import { createUser } from "./helpers/users.js";
@@ -31,7 +31,7 @@ beforeAll(async () => {
   await clearTestDb();
   alice = await createUser();
   bob = await createUser();
-  redis = createClient({ url: process.env.REDIS_URL });
+  redis = createTestRedis();
   await redis.connect();
   server = await startSocketServer();
   other = await startSocketServer();
