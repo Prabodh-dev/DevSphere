@@ -4,7 +4,7 @@ import app from "./app.js";
 import { setupSocketIO } from "./socket.js";
 import { closeRedis } from "./config/redis.js";
 import { flushLiveCode } from "./services/liveCodeService.js";
-import { config, getEnvProblems } from "./config/index.js";
+import { config, getConfigWarnings, getEnvProblems } from "./config/index.js";
 import { logger } from "./utils/logger.js";
 import { createShutdown, installProcessGuards } from "./utils/shutdown.js";
 import { cleanupExpiredStatusMedia } from "./utils/mediaCleanup.js";
@@ -14,6 +14,8 @@ if (problems.length > 0) {
   logger.fatal({ problems }, "Invalid environment");
   process.exit(1);
 }
+
+for (const warning of getConfigWarnings()) logger.warn(warning);
 
 const PORT = config.port;
 const server = http.createServer(app);

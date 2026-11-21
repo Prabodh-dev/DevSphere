@@ -43,43 +43,47 @@ the process is up and connected to the database.
 
 Copy `.env.example` to `.env` and set:
 
-| Variable                   | Required    | Purpose                                                                                              |
-| -------------------------- | ----------- | ---------------------------------------------------------------------------------------------------- |
-| `MONGO_URI`                | yes         | MongoDB connection string                                                                            |
-| `JWT_SECRET`               | yes         | Secret used to sign tokens, at least 32 characters                                                   |
-| `PORT`                     | no          | HTTP port, defaults to `5000`                                                                        |
-| `NODE_ENV`                 | no          | `development`, `test` or `production`                                                                |
-| `MONGO_AUTO_INDEX`         | no          | `true` or `false`; build missing indexes at startup, default `true` except in production             |
-| `DOCS_ENABLED`             | no          | `true` or `false`; serve the API docs page and OpenAPI document, default `true` except in production |
-| `LOG_LEVEL`                | no          | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`, default `info`                       |
-| `LOG_PRETTY`               | no          | `true` for human readable logs instead of JSON, default `false`                                      |
-| `METRICS_ENABLED`          | no          | `true` to serve Prometheus metrics at `/metrics`, default `false`                                    |
-| `METRICS_TOKEN`            | no          | When set, `/metrics` needs this value as a bearer token                                              |
-| `CORS_ORIGINS`             | no          | Comma separated browser origins allowed to call the API (none if empty)                              |
-| `TRUST_PROXY`              | no          | Number of reverse proxies in front of the app, default `0`                                           |
-| `ACCESS_TOKEN_TTL`         | no          | Access token lifetime (`30s`, `15m`, `2h`, `1d`), default `15m`                                      |
-| `REFRESH_TOKEN_TTL_DAYS`   | no          | Refresh token lifetime in days, default `30`                                                         |
-| `COOKIE_SECURE`            | no          | `true` when served over HTTPS, so the refresh cookie is `Secure`                                     |
-| `REFRESH_RATE_LIMIT_MAX`   | no          | Refresh requests per 15 minutes, default `60`                                                        |
-| `REDIS_URL`                | no          | Redis URL, to run several instances (see Scaling); the app works without it                          |
-| `LIVE_CODE_FLUSH_MS`       | no          | Milliseconds live code edits wait before they are saved, default `2000`                              |
-| `REDIS_KEY_PREFIX`         | no          | Prefix for the Redis keys the app writes, default none                                               |
-| `RATE_LIMIT_MAX`           | no          | Requests per 15 minutes for `/api`, default `300`                                                    |
-| `AUTH_RATE_LIMIT_MAX`      | no          | Login and register requests per 15 minutes, default `10`                                             |
-| `HIGHLIGHT_RATE_LIMIT_MAX` | no          | Snippet highlight requests per minute, default `30`                                                  |
-| `AWS_ACCESS_KEY`           | for uploads | AWS access key id (optional if the environment provides AWS credentials)                             |
-| `AWS_SECRET_KEY`           | for uploads | AWS secret access key                                                                                |
-| `AWS_REGION`               | for uploads | AWS region of the bucket                                                                             |
-| `AVATAR_BUCKET`            | for uploads | S3 bucket for avatars and status media                                                               |
-| `MEDIA_URL_TTL_SECONDS`    | no          | Lifetime of signed media links, default `300`, at most `3600`                                        |
+| Variable                   | Required    | Purpose                                                                                                           |
+| -------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------- |
+| `MONGO_URI`                | yes         | MongoDB connection string                                                                                         |
+| `JWT_SECRET`               | yes         | Secret used to sign tokens, at least 32 characters                                                                |
+| `PORT`                     | no          | HTTP port, defaults to `5000`                                                                                     |
+| `NODE_ENV`                 | no          | `development`, `test` or `production`                                                                             |
+| `MONGO_AUTO_INDEX`         | no          | `true` or `false`; build missing indexes at startup, default `true` except in production                          |
+| `DOCS_ENABLED`             | no          | `true` or `false`; serve the API docs page and OpenAPI document, default `true` except in production              |
+| `LOG_LEVEL`                | no          | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`, default `info`                                    |
+| `LOG_PRETTY`               | no          | `true` for human readable logs instead of JSON, default `false`                                                   |
+| `METRICS_ENABLED`          | no          | `true` to serve Prometheus metrics at `/metrics`, default `false`                                                 |
+| `METRICS_TOKEN`            | no          | When set, `/metrics` needs this value as a bearer token                                                           |
+| `CORS_ORIGINS`             | no          | Comma separated browser origins allowed to call the API (none if empty)                                           |
+| `TRUST_PROXY`              | no          | Number of reverse proxies in front of the app (recommended), or a list of their addresses or subnets; default `0` |
+| `ACCESS_TOKEN_TTL`         | no          | Access token lifetime (`30s`, `15m`, `2h`, `1d`), default `15m`                                                   |
+| `REFRESH_TOKEN_TTL_DAYS`   | no          | Refresh token lifetime in days, default `30`                                                                      |
+| `COOKIE_SECURE`            | no          | `true` when served over HTTPS, so the refresh cookie is `Secure`                                                  |
+| `REFRESH_RATE_LIMIT_MAX`   | no          | Refresh requests per 15 minutes, default `60`                                                                     |
+| `REDIS_URL`                | no          | Redis URL, to run several instances (see Scaling); the app works without it                                       |
+| `LIVE_CODE_FLUSH_MS`       | no          | Milliseconds live code edits wait before they are saved, default `2000`                                           |
+| `REDIS_KEY_PREFIX`         | no          | Prefix for the Redis keys the app writes, default none                                                            |
+| `RATE_LIMIT_MAX`           | no          | Requests per 15 minutes for `/api`, default `300`                                                                 |
+| `AUTH_RATE_LIMIT_MAX`      | no          | Login and register requests per 15 minutes, default `10`                                                          |
+| `HIGHLIGHT_RATE_LIMIT_MAX` | no          | Snippet highlight requests per minute, default `30`                                                               |
+| `AWS_ACCESS_KEY`           | for uploads | AWS access key id (optional if the environment provides AWS credentials)                                          |
+| `AWS_SECRET_KEY`           | for uploads | AWS secret access key                                                                                             |
+| `AWS_REGION`               | for uploads | AWS region of the bucket                                                                                          |
+| `AVATAR_BUCKET`            | for uploads | S3 bucket for avatars and status media                                                                            |
+| `MEDIA_URL_TTL_SECONDS`    | no          | Lifetime of signed media links, default `300`, at most `3600`                                                     |
 
 The server exits at startup if `MONGO_URI` or `JWT_SECRET` is missing, if
 `JWT_SECRET` is shorter than 32 characters, if a duration or count above is
 invalid, or if it cannot connect to MongoDB.
 
-Behind a reverse proxy, set `TRUST_PROXY` to the number of proxies so rate
-limiting sees the real client address. With the default `0` forwarded headers
-are ignored.
+Behind a reverse proxy, set `TRUST_PROXY` to the number of proxies in front of
+the app (a hop count is the recommended value in production) so rate limiting
+sees the real client address. A comma separated list of proxy addresses or
+subnets (`10.0.0.0/8, loopback`) is also accepted. With the default `0`
+forwarded headers are ignored. A bare `true` trusts every client's
+`X-Forwarded-For` header, so any client can choose the address the rate limits
+see; it still works but logs a warning at startup.
 
 ## Authentication
 
