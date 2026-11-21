@@ -95,6 +95,7 @@ Payload rules:
 | Event                  | Payload                                                     | When                                                                                       |
 | ---------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `receive-message`      | the stored message                                          | A message was sent to a chat the user is a member of (see Sending messages)                |
+| `group-updated`        | `{ chatId, change, userId?, chatName? }`                    | A group changed (see Groups)                                                               |
 | `read-receipt`         | `{ chatId, userId, messageId, readAt }`                     | A member's read marker moved forward in a chat the socket joined (see Read state)          |
 | `typing`               | user id (string)                                            | A member of a joined chat is typing                                                        |
 | `stop-typing`          | user id (string)                                            | A member of a joined chat stopped typing                                                   |
@@ -162,6 +163,28 @@ opens and `user-offline` when their last one closes; further tabs send nothing.
 When the last connection closes the time is stored as the user's last seen
 time. `GET /api/v1/presence?ids=a,b,c` returns it, for people the caller shares
 a chat with or follows (see the API reference).
+
+## Groups
+
+`group-updated` is sent to the group's chat room, and to the private room of the
+person it concerns (so someone who just left or was removed still hears it).
+`change` is one of:
+
+| `change`         | Extra fields | When                                   |
+| ---------------- | ------------ | -------------------------------------- |
+| `member-added`   | `userId`     | An admin added a member                |
+| `member-removed` | `userId`     | An admin removed a member              |
+| `member-left`    | `userId`     | A member left                          |
+| `admin-promoted` | `userId`     | A member was made an admin             |
+| `admin-demoted`  | `userId`     | An admin lost admin rights             |
+| `renamed`        | `chatName`   | An admin renamed the group             |
+| `deleted`        |              | An admin deleted the group (see below) |
+
+Someone who leaves or is removed has their connections taken out of the group's
+rooms straight away, so they receive no further messages, typing events or live
+code from it. When a group is deleted its messages, read markers, live code
+document and notifications are deleted and every member's connections leave its
+rooms.
 
 ## Read state
 

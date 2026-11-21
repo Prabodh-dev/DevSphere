@@ -102,6 +102,7 @@ export const createGroupBody = z.object({
   chatName: text(100),
   members: z.array(objectId).max(100, "at most 100 members are allowed"),
 });
+export const groupChatBody = z.object({ chatId: objectId });
 export const groupMemberBody = z.object({ chatId: objectId, userId: objectId });
 export const renameGroupBody = z.object({
   chatId: objectId,

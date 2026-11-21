@@ -427,6 +427,51 @@ route({
   response: R.MessageResponse,
   errors: [403, 404],
 });
+route({
+  method: "patch",
+  path: "/group/leave",
+  tags: ["Groups"],
+  summary: "Leave a group",
+  description:
+    "The last admin cannot leave: promote another member first, or delete the group. Your open connections stop receiving the group's messages straight away.",
+  auth: "bearer",
+  body: S.groupChatBody,
+  response: R.MessageResponse,
+  errors: [403, 404],
+});
+route({
+  method: "patch",
+  path: "/group/promote",
+  tags: ["Groups"],
+  summary: "Make a member an admin (group admins only)",
+  auth: "bearer",
+  body: S.groupMemberBody,
+  response: R.MessageResponse,
+  errors: [403, 404],
+});
+route({
+  method: "patch",
+  path: "/group/demote",
+  tags: ["Groups"],
+  summary: "Take admin rights from an admin (group admins only)",
+  description: "A group always keeps at least one admin.",
+  auth: "bearer",
+  body: S.groupMemberBody,
+  response: R.MessageResponse,
+  errors: [403, 404],
+});
+route({
+  method: "delete",
+  path: "/group/{chatId}",
+  tags: ["Groups"],
+  summary: "Delete a group (group admins only)",
+  description:
+    "Removes the group's messages (and the files they refer to), read markers, live code document and notifications, and takes every member's connections out of its rooms.",
+  auth: "bearer",
+  params: S.chatIdParams,
+  response: R.MessageResponse,
+  errors: [403, 404],
+});
 
 // ---- status ----
 route({

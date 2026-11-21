@@ -13,6 +13,7 @@ const ROUTERS = [
   "/snippets",
   "/notifications",
   "/status",
+  "/group",
 ];
 const SOME_ID = "665f1c2a9b1e8a0012a4c001";
 
@@ -115,6 +116,7 @@ describe("the routers", () => {
       "routes/snippetRoutes.js",
       "routes/notificationRoutes.js",
       "routes/statusRoutes.js",
+      "routes/groupRoutes.js",
     ]) {
       const source = readFileSync(path.join(root, file), "utf8");
       expect(source, file).toMatch(/router\.use\(\s*limiters\.general\s*\)/);

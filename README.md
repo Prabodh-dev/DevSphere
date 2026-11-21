@@ -478,7 +478,7 @@ Other areas
 - `/users`: follow and unfollow, paged `GET /:id/followers` and `/following`, `PATCH /me/tags`, paged `GET /?tag=`.
 - `/chat`: `POST /access`, paged `GET /` (with `unreadCount`), `POST /message`, paged `GET /message/:chatId`, `PUT /:chatId/read` (move your read marker forward).
 - `/presence`: `GET /?ids=a,b,c` (up to 100 user ids): online state and last seen time of yourself, people you share a chat with and people you follow. Other ids are left out.
-- `/group`: `POST /create`, `PATCH /add`, `/remove`, `/rename`.
+- `/group`: `POST /create`, `PATCH /add`, `/remove`, `/rename`, `/leave`, `/promote`, `/demote` and `DELETE /:chatId`.
 - `/status`: `POST /` (text, image or video), paged `GET /feed`.
 - `/snippets/highlight` (public, rate limited), `/live-code/:chatId` (with its `revision`), paged `/notifications`, `/report` (the target must exist; one open report per user and target).
 - `/admin` (admin role only): paged users, block and unblock, paged `GET /reports?status=open|resolved|all`, `DELETE /remove/:type/:id` (message, status, or user, which blocks the account).
