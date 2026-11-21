@@ -5,6 +5,9 @@ import { SharedStore } from "../utils/rateLimitStore.js";
 
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
 
+// Set on a request once the general limiter has counted it.
+const COUNTED = Symbol("generalRateLimitCounted");
+
 const tooMany = (req, res) => {
   const retryAfter = Number(res.getHeader("Retry-After"));
   sendError(
@@ -26,9 +29,16 @@ export function createLimiters(options = {}) {
   });
 
   return {
-    // Applied to every /api request.
+    // Applied to every /api request. Routers that want the limit to be
+    // visible where their routes are declared apply it too; a request is
+    // still counted only once.
     general: rateLimit({
       ...base("general"),
+      skip: (req) => {
+        if (req[COUNTED]) return true;
+        req[COUNTED] = true;
+        return false;
+      },
       windowMs: FIFTEEN_MINUTES,
       limit: options.generalMax ?? 300,
     }),
