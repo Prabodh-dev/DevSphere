@@ -23,7 +23,7 @@ try {
   const user = await User.findOneAndUpdate(
     { email },
     { role: "admin" },
-    { new: true }
+    { returnDocument: "after" }
   );
   if (!user) {
     log.error(`User not found: ${email}`);
