@@ -72,6 +72,8 @@ Copy `.env.example` to `.env` and set:
 | `AWS_REGION`               | for uploads | AWS region of the bucket                                                                                          |
 | `AVATAR_BUCKET`            | for uploads | S3 bucket for avatars and status media                                                                            |
 | `MEDIA_URL_TTL_SECONDS`    | no          | Lifetime of signed media links, default `300`, at most `3600`                                                     |
+| `CHAT_IMAGE_MAX_MB`        | no          | Largest image that can be sent in a chat, in megabytes, default `10`                                              |
+| `CHAT_FILE_MAX_MB`         | no          | Largest PDF or ZIP file that can be sent in a chat, in megabytes, default `20`                                    |
 
 The server exits at startup if `MONGO_URI` or `JWT_SECRET` is missing, if
 `JWT_SECRET` is shorter than 32 characters, if a duration or count above is

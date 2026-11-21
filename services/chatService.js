@@ -4,6 +4,11 @@ import Message from "../models/Message.js";
 import User from "../models/User.js";
 import { badRequest, forbidden, notFound } from "../utils/httpError.js";
 import { paginate } from "../utils/pagination.js";
+import { config } from "../config/index.js";
+import { HttpError } from "../utils/httpError.js";
+import { IMAGE_TYPES } from "../utils/fileType.js";
+import { deleteMedia, uploadMedia } from "../utils/s3Utils.js";
+import { messageView } from "../utils/serializers.js";
 import { getLiveCodeDocument } from "./liveCodeService.js";
 import { logger } from "../utils/logger.js";
 import { chatRoom, userRoom } from "../utils/rooms.js";
@@ -54,7 +59,7 @@ export function listChats(userId, { limit, cursor }) {
     build: (query) =>
       query.populate("members", "username avatarKey").populate({
         path: "latestMessage",
-        select: "sender type text createdAt",
+        select: "sender type text media.mimeType createdAt",
         populate: { path: "sender", select: "username" },
       }),
   });
@@ -78,7 +83,7 @@ async function deliverMessage(io, chat, message) {
     if (blocked.length) {
       target = target.except(blocked.map((member) => userRoom(member.id)));
     }
-    target.emit("receive-message", message.toJSON());
+    target.emit("receive-message", await messageView(message));
   } catch (err) {
     // The message is saved; a failed push must not fail the request.
     logger.warn({ err: err.message }, "Could not deliver message");
@@ -87,7 +92,11 @@ async function deliverMessage(io, chat, message) {
 
 // The one way a message is sent, for REST and sockets: saves it, moves the
 // chat's latest message, and delivers it to the members.
-export async function sendMessage(userId, { chatId, type, text, code }, io) {
+export async function sendMessage(
+  userId,
+  { chatId, type, text, code, media },
+  io
+) {
   const chat = await loadChatForMember(chatId, userId);
 
   const messageData = { chat: chat._id, sender: userId, type };
@@ -97,6 +106,8 @@ export async function sendMessage(userId, { chatId, type, text, code }, io) {
       language: code.language || "plaintext",
       content: code.content,
     };
+  } else if (type === "media") {
+    messageData.media = media;
   } else {
     messageData.text = text;
   }
@@ -111,6 +122,67 @@ export async function sendMessage(userId, { chatId, type, text, code }, io) {
 
   await deliverMessage(io, chat, message);
   return message;
+}
+
+// A file name as shown to other people: no path, no control characters, and a
+// sensible length. It is only a label; the stored key never uses it.
+export function cleanFileName(name) {
+  // Multer reads the header as latin1; browsers send UTF-8.
+  const decoded = Buffer.from(String(name ?? ""), "latin1").toString("utf8");
+  const base = decoded.split(/[\\/]/).pop();
+  // eslint-disable-next-line no-control-regex
+  const safe = base.replace(/[\u0000-\u001f\u007f<>:"|?*]/g, "").trim();
+  if (!safe || /^\.+$/.test(safe)) return "file";
+  if (safe.length <= 120) return safe;
+  const dot = safe.lastIndexOf(".");
+  const extension = dot > 0 ? safe.slice(dot).slice(0, 10) : "";
+  return safe.slice(0, 120 - extension.length) + extension;
+}
+
+// Sends an image or a PDF or ZIP file to a chat. The member check comes before
+// anything is stored, the stored key is generated here, and the message goes
+// out through sendMessage like any other.
+export async function sendMediaMessage(userId, { chatId, file }, io) {
+  const chat = await loadChatForMember(chatId, userId);
+  if (!file) throw new HttpError(400, "A file is required");
+
+  const isImage = IMAGE_TYPES.includes(file.mimetype);
+  const limit = isImage
+    ? config.chatMedia.imageMaxBytes
+    : config.chatMedia.fileMaxBytes;
+  if (file.size > limit) {
+    throw new HttpError(
+      413,
+      `${isImage ? "Images" : "Files"} can be at most ${limit / (1024 * 1024)} MB`
+    );
+  }
+
+  const key = await uploadMedia({
+    buffer: file.buffer,
+    mimetype: file.mimetype,
+    prefix: "chat",
+  });
+
+  try {
+    return await sendMessage(
+      userId,
+      {
+        chatId: chat.id,
+        type: "media",
+        media: {
+          mimeType: file.mimetype,
+          key,
+          size: file.size,
+          fileName: cleanFileName(file.originalname),
+        },
+      },
+      io
+    );
+  } catch (err) {
+    // Nothing refers to the stored file.
+    await deleteMedia(key);
+    throw err;
+  }
 }
 
 // Newest first; ask for the cursor of a page to get the older messages.

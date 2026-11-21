@@ -343,6 +343,22 @@ route({
   errors: [403, 404],
 });
 route({
+  method: "post",
+  path: "/chat/media",
+  tags: ["Chat"],
+  summary: "Send an image or a file",
+  description:
+    "multipart/form-data with `chatId` and a `file`: an image (JPEG, PNG, WebP, GIF, up to `CHAT_IMAGE_MAX_MB`) or a PDF or ZIP file (up to `CHAT_FILE_MAX_MB`). The type is checked from the file's bytes. The message is delivered like any other. Responses carry a signed link, never the storage key. Answers 503 `UPLOADS_NOT_CONFIGURED` when storage is not set up.",
+  auth: "bearer",
+  multipart: z.object({
+    chatId: z.string(),
+    file: file("Image, PDF or ZIP"),
+  }),
+  ok: 201,
+  response: R.Message,
+  errors: [403, 404, 413, 415, 503],
+});
+route({
   method: "put",
   path: "/chat/{chatId}/read",
   tags: ["Chat"],

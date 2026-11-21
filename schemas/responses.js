@@ -234,6 +234,17 @@ export const Message = z
         content: z.string().optional(),
       })
       .optional(),
+    media: z
+      .object({
+        kind: z.enum(["image", "file"]),
+        mimeType: z.string().openapi({ example: "image/png" }),
+        size: z.number().int(),
+        fileName: z.string().openapi({ example: "diagram.png" }),
+        url: z.string().openapi({
+          description: "Short-lived signed link to the stored file",
+        }),
+      })
+      .optional(),
     createdAt: date(WHEN),
     updatedAt: date(WHEN),
   })

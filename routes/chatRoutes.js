@@ -5,14 +5,17 @@ import {
   sendMessage,
   getMessages,
   markRead,
+  sendMedia,
 } from "../controllers/chatController.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
 import { limiters } from "../middlewares/rateLimit.js";
 import validate from "../middlewares/validate.js";
+import { uploadChatMedia } from "../utils/multer.js";
 import {
   accessChatBody,
   chatIdParams,
   markReadBody,
+  mediaMessageBody,
   pageQuery,
   sendMessageBody,
 } from "../schemas/index.js";
@@ -34,6 +37,13 @@ router.post(
   authMiddleware,
   validate({ body: sendMessageBody }),
   sendMessage
+);
+router.post(
+  "/media",
+  authMiddleware,
+  uploadChatMedia,
+  validate({ body: mediaMessageBody }),
+  sendMedia
 );
 router.get(
   "/message/:chatId",

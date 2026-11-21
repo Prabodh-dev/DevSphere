@@ -60,6 +60,7 @@ export async function removeReported(admin, { type, id }, io) {
 
     if (type === "status") await deleteMedia(deleted.mediaKey);
     if (type === "message") {
+      await deleteMedia(deleted.media?.key);
       await refreshLatestMessage(deleted.chat, deleted._id);
     }
   }

@@ -77,3 +77,23 @@ export const notificationView = async (notification) => {
   }
   return plain;
 };
+
+// A message as shown to clients. A media message carries its type, size, file
+// name and a short-lived signed link, never the stored key.
+export const messageView = async (message) => {
+  const plain =
+    typeof message.toJSON === "function" ? message.toJSON() : message;
+  if (plain.type !== "media" || !plain.media) return plain;
+
+  const { key, mimeType, size, fileName } = plain.media;
+  return {
+    ...plain,
+    media: {
+      kind: mimeType?.startsWith("image/") ? "image" : "file",
+      mimeType,
+      size,
+      fileName,
+      url: await getSignedMediaUrl(key),
+    },
+  };
+};

@@ -123,6 +123,7 @@ describe("config", () => {
       docsEnabled: true,
       redis: { url: "", keyPrefix: "" },
       liveCode: { flushMs: 2000 },
+      chatMedia: { imageMaxBytes: 10485760, fileMaxBytes: 20971520 },
       rateLimit: { general: 300, auth: 10, refresh: 60, highlight: 30 },
       aws: { accessKey: "", secretKey: "", region: "", bucket: "" },
       mediaUrlTtlSeconds: 300,

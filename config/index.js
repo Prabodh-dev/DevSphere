@@ -192,6 +192,20 @@ const variables = [
     fallback: () => 2000,
   },
 
+  // Chat media limits, in megabytes, per kind of file.
+  {
+    name: "CHAT_IMAGE_MAX_MB",
+    type: count(1),
+    message: "CHAT_IMAGE_MAX_MB must be a positive whole number",
+    fallback: () => 10,
+  },
+  {
+    name: "CHAT_FILE_MAX_MB",
+    type: count(1),
+    message: "CHAT_FILE_MAX_MB must be a positive whole number",
+    fallback: () => 20,
+  },
+
   {
     name: "AWS_ACCESS_KEY",
     type: text,
@@ -302,6 +316,10 @@ export function loadConfig(env = process.env) {
       docsEnabled: raw.DOCS_ENABLED,
       redis: { url: raw.REDIS_URL, keyPrefix: raw.REDIS_KEY_PREFIX },
       liveCode: { flushMs: raw.LIVE_CODE_FLUSH_MS },
+      chatMedia: {
+        imageMaxBytes: raw.CHAT_IMAGE_MAX_MB * 1024 * 1024,
+        fileMaxBytes: raw.CHAT_FILE_MAX_MB * 1024 * 1024,
+      },
       rateLimit: {
         general: raw.RATE_LIMIT_MAX,
         auth: raw.AUTH_RATE_LIMIT_MAX,

@@ -67,10 +67,11 @@ export const tagQuery = pageQuery.extend({ tag: text(30) });
 export const accessChatBody = z.object({ userId: objectId });
 export const chatIdParams = z.object({ chatId: objectId });
 
+// Media messages are uploaded to POST /chat/media instead.
 export const sendMessageBody = z
   .object({
     chatId: objectId,
-    type: z.enum(["text", "media", "code"]).default("text"),
+    type: z.enum(["text", "code"]).default("text"),
     text: z.string().trim().min(1).max(5000).optional(),
     code: z
       .object({
@@ -93,6 +94,7 @@ export const sendMessageBody = z
     }
   });
 
+export const mediaMessageBody = z.object({ chatId: objectId });
 export const markReadBody = z.object({ messageId: objectId });
 
 // ---- groups ----

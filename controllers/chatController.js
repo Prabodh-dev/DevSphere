@@ -1,6 +1,6 @@
 import * as chats from "../services/chatService.js";
 import * as reads from "../services/readService.js";
-import { chatView } from "../utils/serializers.js";
+import { chatView, messageView } from "../utils/serializers.js";
 
 export const accessChat = async (req, res) => {
   const chat = await chats.accessChat(req.user._id, req.valid.body.userId);
@@ -28,7 +28,16 @@ export const sendMessage = async (req, res) => {
     req.valid.body,
     req.app.get("io")
   );
-  res.status(201).json(message);
+  res.status(201).json(await messageView(message));
+};
+
+export const sendMedia = async (req, res) => {
+  const message = await chats.sendMediaMessage(
+    req.user._id,
+    { chatId: req.valid.body.chatId, file: req.file },
+    req.app.get("io")
+  );
+  res.status(201).json(await messageView(message));
 };
 
 export const getMessages = async (req, res) => {
@@ -37,7 +46,9 @@ export const getMessages = async (req, res) => {
     req.valid.params.chatId,
     req.valid.query
   );
-  res.status(200).json({ items: docs, nextCursor });
+  res
+    .status(200)
+    .json({ items: await Promise.all(docs.map(messageView)), nextCursor });
 };
 
 export const getLiveCode = async (req, res) => {

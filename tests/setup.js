@@ -38,6 +38,8 @@ const defaults = {
   MEDIA_URL_TTL_SECONDS: "300",
   // Live code edits are saved this long after the last one.
   LIVE_CODE_FLUSH_MS: "200",
+  CHAT_IMAGE_MAX_MB: "10",
+  CHAT_FILE_MAX_MB: "20",
 };
 
 // Each test file gets its own database and Redis key prefix, so files never
