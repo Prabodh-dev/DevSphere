@@ -37,6 +37,8 @@ export async function follow(actor, targetUserId, io) {
     type: "follow",
     content: `${actor.username} started following you`,
     fromUser: actor._id,
+    // Following again after an unfollow is not new news.
+    dedupeKey: `follow:${actor._id}`,
   });
 }
 

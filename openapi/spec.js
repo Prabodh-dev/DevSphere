@@ -583,10 +583,38 @@ route({
   response: paged("NotificationPage", R.NotificationItem),
 });
 route({
+  method: "get",
+  path: "/notifications/unread-count",
+  tags: ["Notifications"],
+  summary: "How many notifications you have not read",
+  auth: "bearer",
+  response: R.UnreadCount,
+});
+route({
+  method: "patch",
+  path: "/notifications/read-all",
+  tags: ["Notifications"],
+  summary: "Mark all your notifications as read",
+  auth: "bearer",
+  response: R.UpdatedCount,
+});
+route({
+  method: "patch",
+  path: "/notifications/{id}/read",
+  tags: ["Notifications"],
+  summary: "Mark one notification as read",
+  description:
+    "Repeating it is harmless. Another user's notification is answered with 404.",
+  auth: "bearer",
+  params: S.notificationIdParams,
+  response: R.NotificationItem,
+  errors: [404],
+});
+route({
   method: "post",
   path: "/report",
   tags: ["Reports"],
-  summary: "Report a message, status or user",
+  summary: "Report a message, status, snippet or user",
   auth: "bearer",
   body: S.reportBody,
   ok: 201,

@@ -372,6 +372,27 @@ revision, and a stale edit is answered with a conflict and the current
 document. Read markers, read receipts and online presence are described in
 [docs/socket-events.md](docs/socket-events.md).
 
+## Notifications
+
+The server creates notifications itself and pushes them to the user's open
+sockets as `receive-notification`; `GET /api/v1/notifications` lists them.
+Each has a `type`:
+
+- `follow`: someone followed you
+- `like`: someone liked your status
+- `reply`: someone replied to your status
+- `mention`: someone wrote `@yourusername` in a chat you are a member of
+- `group`: someone added you to a group
+
+Nobody is notified about their own actions, and a notification that would repeat
+an earlier one (following again, liking again) is not created a second time.
+Notifications about content that is deleted (a status, a message, a group) are
+deleted with it. `seen` tells whether one has been read:
+`GET /api/v1/notifications/unread-count` returns `{ unreadCount }`,
+`PATCH /api/v1/notifications/{id}/read` marks one and
+`PATCH /api/v1/notifications/read-all` marks all of them. (`message` and
+`status` are older kinds that are no longer created.)
+
 ## Scaling
 
 One instance needs nothing but MongoDB. To run several instances behind a load

@@ -187,6 +187,8 @@ export const reportsQuery = pageQuery.extend({
   status: z.enum(["open", "resolved", "all"]).default("open"),
 });
 
+export const notificationIdParams = z.object({ id: objectId });
+
 // ---- presence ----
 const MAX_PRESENCE_IDS = 100;
 export const presenceQuery = z.object({

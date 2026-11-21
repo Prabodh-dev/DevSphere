@@ -8,6 +8,7 @@ import { badRequest, notFound } from "../utils/httpError.js";
 import { paginate } from "../utils/pagination.js";
 import { disconnectUser } from "../utils/socketOps.js";
 import { deleteMedia } from "../utils/s3Utils.js";
+import { removeNotificationsFor } from "./notificationService.js";
 import { revokeAllForUser } from "./sessionService.js";
 
 // Blocks or unblocks an account. A blocked user is signed out everywhere and
@@ -63,6 +64,7 @@ export async function removeReported(admin, { type, id }, io) {
     if (type === "status") await deleteMedia(deleted.mediaKey);
     if (type === "message") {
       await deleteMedia(deleted.media?.key);
+      await removeNotificationsFor({ messageId: deleted._id });
       await refreshLatestMessage(deleted.chat, deleted._id);
     }
   }

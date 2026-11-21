@@ -7,7 +7,7 @@ import { withEnv } from "./helpers/config.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const LIMIT = 4;
-const ROUTERS = ["/chat", "/presence", "/snippets"];
+const ROUTERS = ["/chat", "/presence", "/snippets", "/notifications"];
 const SOME_ID = "665f1c2a9b1e8a0012a4c001";
 
 let app;
@@ -107,6 +107,7 @@ describe("the routers", () => {
       "routes/chatRoutes.js",
       "routes/presenceRoutes.js",
       "routes/snippetRoutes.js",
+      "routes/notificationRoutes.js",
     ]) {
       const source = readFileSync(path.join(root, file), "utf8");
       expect(source, file).toMatch(/router\.use\(\s*limiters\.general\s*\)/);

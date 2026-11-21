@@ -9,6 +9,7 @@ import { HttpError } from "../utils/httpError.js";
 import { IMAGE_TYPES } from "../utils/fileType.js";
 import { deleteMedia, uploadMedia } from "../utils/s3Utils.js";
 import { messageView } from "../utils/serializers.js";
+import { notifyMentions } from "./mentionService.js";
 import { getLiveCodeDocument } from "./liveCodeService.js";
 import { logger } from "../utils/logger.js";
 import { chatRoom, userRoom } from "../utils/rooms.js";
@@ -121,6 +122,7 @@ export async function sendMessage(
     .populate("chat", "isGroupChat chatName");
 
   await deliverMessage(io, chat, message);
+  await notifyMentions(io, { chat, message, sender: message.sender });
   return message;
 }
 

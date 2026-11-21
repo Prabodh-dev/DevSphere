@@ -1,4 +1,5 @@
 import { z } from "./openapi.js";
+import { NOTIFICATION_TYPES } from "../models/Notification.js";
 
 // Shapes of what the API sends back. They are used to build the OpenAPI
 // document and are checked against real responses in the tests.
@@ -323,16 +324,29 @@ export const NotificationItem = z
   .object({
     _id: id(ID),
     user: id(ID2),
-    type: z.enum(["message", "follow", "group", "status"]),
+    type: z.enum(NOTIFICATION_TYPES).openapi({
+      description:
+        "follow: someone followed you. like: someone liked your status. reply: someone replied to your status. mention: someone mentioned you (@username) in a chat message. group: you were added to a group. message and status are older kinds that are no longer created.",
+    }),
     content: z.string().optional(),
     fromUser: PublicUser.nullable().optional(),
     chatId: id(ID2).optional(),
-    seen: z.boolean(),
+    statusId: id(ID2).optional(),
+    messageId: id(ID2).optional(),
+    seen: z.boolean().openapi({ description: "True once it has been read" }),
     createdAt: date(WHEN),
     updatedAt: date(WHEN),
   })
   .loose()
   .openapi("Notification");
+
+export const UnreadCount = z
+  .object({ unreadCount: z.number().int().openapi({ example: 3 }) })
+  .openapi("UnreadCount");
+
+export const UpdatedCount = z
+  .object({ updated: z.number().int().openapi({ example: 3 }) })
+  .openapi("UpdatedCount");
 
 export const ReportItem = z
   .object({
@@ -341,7 +355,7 @@ export const ReportItem = z
       id(ID2),
       z.object({ _id: id(ID2), username: z.string() }),
     ]),
-    targetType: z.enum(["message", "status", "user"]),
+    targetType: z.enum(["message", "status", "user", "snippet"]),
     targetId: id(ID),
     reason: z.string(),
     status: z.enum(["open", "resolved"]),
