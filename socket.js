@@ -1,9 +1,18 @@
 // socket.js
 import { Server } from "socket.io";
-import { getRedisClient, initRedis } from "./config/redis.js";
+import { createAdapter } from "@socket.io/redis-adapter";
+import {
+  closeAdapterClients,
+  createAdapterClients,
+  initRedis,
+} from "./config/redis.js";
 import { config } from "./config/index.js";
+import {
+  presence,
+  recordLastSeen,
+  trackPresence,
+} from "./services/presenceService.js";
 import Chat from "./models/Chat.js";
-import LiveCode from "./models/LiveCode.js";
 import User from "./models/User.js";
 import {
   chatRoom,
@@ -12,14 +21,24 @@ import {
   userRoom,
 } from "./utils/rooms.js";
 import { verifyAccessToken } from "./utils/tokens.js";
-import { errorBody } from "./utils/apiError.js";
 import { logger } from "./utils/logger.js";
 import { socketConnections, socketEvents } from "./utils/metrics.js";
 import { isSessionActive } from "./services/sessionService.js";
+import { sendMessage } from "./services/chatService.js";
+import { markRead } from "./services/readService.js";
+import {
+  applyEdit,
+  flushLiveCode,
+  getLiveCodeDocument,
+} from "./services/liveCodeService.js";
+import { SharedStore } from "./utils/rateLimitStore.js";
+import { errorBody } from "./utils/apiError.js";
+import { SocketInputError, parse, socketError } from "./socket/errors.js";
 import {
   chatIdPayload,
   codeChangePayload,
   joinLiveCodePayload,
+  markReadPayload,
   messagePayload,
 } from "./schemas/socket.js";
 
@@ -32,50 +51,6 @@ const MAX_PACKET_BYTES = 512 * 1024;
 const DEFAULT_RATE_LIMIT = { max: 100, windowMs: 10 * 1000 };
 // Events dropped in a row before the connection is closed.
 const MAX_VIOLATIONS = 50;
-
-// Raised for bad client input; the message is safe to send back.
-class SocketInputError extends Error {
-  constructor(message, code = "VALIDATION_ERROR", details) {
-    super(message);
-    this.code = code;
-    this.details = details;
-  }
-}
-
-// socket-error payload: { event, error: { code, message, details? } }
-const socketError = (event, code, message, details) => ({
-  event,
-  ...errorBody(code, message, details),
-});
-
-const parse = (schema, payload) => {
-  const result = schema.safeParse(payload);
-  if (!result.success) {
-    throw new SocketInputError(
-      "Invalid payload",
-      "VALIDATION_ERROR",
-      result.error.issues.map((issue) => ({
-        field: issue.path.join("."),
-        message: issue.message,
-      }))
-    );
-  }
-  return result.data;
-};
-
-// Presence is best effort: a Redis problem must never break a socket.
-const setPresence = async (command, userId) => {
-  const client = getRedisClient();
-  if (!client) return;
-  try {
-    await client[command](`${config.redis.keyPrefix}onlineUsers`, userId);
-  } catch (err) {
-    logger.warn(
-      { err: err.message, command, userId },
-      "Redis presence update failed"
-    );
-  }
-};
 
 // Identity comes from the token only.
 const authenticate = async (socket, next) => {
@@ -114,8 +89,24 @@ export const setupSocketIO = (server, options = {}) => {
     maxHttpBufferSize: MAX_PACKET_BYTES,
   });
 
+  const limiter = new SharedStore({ name: "socket" });
+  limiter.init({ windowMs: rateLimit.windowMs });
+
   // Connects in the background; never blocks connections.
   initRedis();
+
+  // With Redis, several app instances share rooms and events. Without it this
+  // instance works alone.
+  const adapterClients = createAdapterClients();
+  if (adapterClients) {
+    io.adapter(
+      createAdapter(adapterClients.pub, adapterClients.sub, {
+        key: `${config.redis.keyPrefix}socket.io`,
+      })
+    );
+    // The adapter is closed with the server; its connections follow.
+    server.once("close", () => closeAdapterClients(adapterClients));
+  }
 
   io.use(authenticate);
 
@@ -143,18 +134,12 @@ export const setupSocketIO = (server, options = {}) => {
     );
     socket.on("disconnect", () => clearTimeout(closeAt));
 
-    // Per-connection allowance of incoming events.
-    let windowStart = Date.now();
-    let count = 0;
+    // Allowance of incoming events. It is counted per user, so several tabs
+    // (and several app instances, with Redis) share it.
     let violations = 0;
-    socket.use(([event], next) => {
-      const now = Date.now();
-      if (now - windowStart >= rateLimit.windowMs) {
-        windowStart = now;
-        count = 0;
-      }
-      count += 1;
-      if (count <= rateLimit.max) {
+    socket.use(async ([event], next) => {
+      const { totalHits } = await limiter.increment(userId);
+      if (totalHits <= rateLimit.max) {
         violations = 0;
         return next();
       }
@@ -171,24 +156,31 @@ export const setupSocketIO = (server, options = {}) => {
     });
 
     // Wraps a handler so bad input or a failing query is reported to the
-    // client and logged, instead of becoming an unhandled rejection.
+    // client and logged, instead of becoming an unhandled rejection. A client
+    // may pass an acknowledgement callback as the last argument: it receives
+    // { ok: true, ...result } or { ok: false, error }. Without one, errors
+    // arrive as socket-error events.
     const on = (event, handler) => {
       socket.on(event, async (...args) => {
         socketEvents.inc({ event });
+        const ack = typeof args.at(-1) === "function" ? args.pop() : null;
+        const fail = (code, message, details) => {
+          if (ack) ack({ ok: false, ...errorBody(code, message, details) });
+          else
+            socket.emit(
+              "socket-error",
+              socketError(event, code, message, details)
+            );
+        };
         try {
-          await handler(...args);
+          const result = await handler(...args);
+          ack?.({ ok: true, ...result });
         } catch (err) {
           if (err instanceof SocketInputError) {
-            socket.emit(
-              "socket-error",
-              socketError(event, err.code, err.message, err.details)
-            );
+            fail(err.code, err.message, err.details);
           } else {
             log.error({ err, event }, "socket event failed");
-            socket.emit(
-              "socket-error",
-              socketError(event, "INTERNAL_ERROR", "Request failed")
-            );
+            fail("INTERNAL_ERROR", "Request failed");
           }
         }
       });
@@ -209,16 +201,28 @@ export const setupSocketIO = (server, options = {}) => {
       socket.join(chatRoom(id));
     });
 
-    on("send-message", async (data) => {
-      const { chatId, message } = parse(messagePayload, data);
-      await requireMember(chatId);
-      socket.to(chatRoom(chatId)).emit("receive-message", message);
-    });
+    // Saves the message and delivers it from the server. The sender gets an
+    // acknowledgement with the stored id and time.
+    const send = async (data) => {
+      const body = parse(messagePayload, data);
+      await requireMember(body.chatId);
+      const message = await sendMessage(userId, body, io);
+      return {
+        id: message.id,
+        chatId: body.chatId,
+        createdAt: message.createdAt,
+      };
+    };
+    on("send-message", send);
+    // Older name for the same thing.
+    on("group-message", send);
 
-    on("group-message", async (data) => {
-      const { chatId, message } = parse(messagePayload, data);
-      await requireMember(chatId);
-      io.to(chatRoom(chatId)).emit("receive-message", message);
+    // Moves the user's read marker forward and tells the chat. The reply is
+    // the same as PUT /api/v1/chat/{chatId}/read.
+    on("mark-read", async (data) => {
+      const body = parse(markReadPayload, data);
+      await requireMember(body.chatId);
+      return markRead(userId, body, io);
     });
 
     on("typing", async (chatId) => {
@@ -232,54 +236,103 @@ export const setupSocketIO = (server, options = {}) => {
     });
 
     // ========== Live Code Editor ==========
+    // Chats this connection edited, saved when it disconnects.
+    const edited = new Set();
+
     on("join-live-code", async (data) => {
       const { chatId } = parse(joinLiveCodePayload, data);
       await requireMember(chatId);
       socket.join(liveCodeRoom(chatId));
-      const doc = await LiveCode.findOne({ chatId });
+      const doc = await getLiveCodeDocument(chatId);
       if (doc) {
         socket.emit("load-code", doc);
       }
     });
 
-    on("code-change", async (data) => {
-      const { chatId, code, language, fileName } = parse(
-        codeChangePayload,
-        data
-      );
-      await requireMember(chatId);
+    const codeChange = async (data) => {
+      const edit = parse(codeChangePayload, data);
+      await requireMember(edit.chatId);
 
-      const lang = language ?? "plaintext";
-      const name = fileName ?? "main";
-
-      const update = {
-        code,
-        language: lang,
-        fileName: name,
-        updatedBy: userId,
-      };
-      try {
-        await LiveCode.findOneAndUpdate({ chatId }, update, { upsert: true });
-      } catch (err) {
-        // Two first edits arriving together: the other one created the
-        // document, so this one is now a plain update.
-        if (err.code !== 11000) throw err;
-        await LiveCode.findOneAndUpdate({ chatId }, update);
+      const result = await applyEdit(userId, edit);
+      if (!result.ok) {
+        // Someone else's edit came first: send the current document.
+        const conflict = { chatId: edit.chatId, document: result.document };
+        socket.emit("code-conflict", conflict);
+        return {
+          ok: false,
+          error: {
+            code: "REVISION_CONFLICT",
+            message: "The document has changed since your base revision",
+          },
+          ...conflict,
+        };
       }
-      socket
-        .to(liveCodeRoom(chatId))
-        .emit("code-update", { code, language: lang, fileName: name });
+
+      edited.add(edit.chatId);
+      const { code, language, fileName, revision } = result.document;
+      socket.to(liveCodeRoom(edit.chatId)).emit("code-update", {
+        chatId: edit.chatId,
+        code,
+        language,
+        fileName,
+        revision,
+        updatedBy: userId,
+      });
+      return { chatId: edit.chatId, revision };
+    };
+
+    // One socket's edits are handled in the order they were sent, so edits
+    // that follow each other on consecutive revisions all apply.
+    let editQueue = Promise.resolve();
+    on("code-change", (data) => {
+      const run = editQueue.then(() => codeChange(data));
+      editQueue = run.catch(() => {});
+      return run;
     });
 
-    // ========== Disconnect ==========
-    on("disconnect", async () => {
-      await setPresence("sRem", userId);
-      socket.broadcast.emit("user-offline", userId);
+    // Edits are saved a little after the last one; leaving saves them now.
+    socket.on("disconnect", () => {
+      if (edited.size) {
+        trackPresence(
+          flushLiveCode([...edited]).catch((err) =>
+            log.warn({ err }, "saving live code failed")
+          )
+        );
+      }
     });
 
     // ========== Presence ==========
-    setPresence("sAdd", userId);
-    socket.broadcast.emit("user-online", userId);
+    // A user is online while they have at least one connection, on any
+    // instance. Everyone is told when the first one opens and the last closes.
+    const heartbeat = setInterval(
+      () => presence.heartbeat(userId, socket.id),
+      presence.heartbeatMs
+    );
+    heartbeat.unref();
+
+    presence
+      .connected(userId, socket.id)
+      .then(({ first }) => {
+        if (first) socket.broadcast.emit("user-online", userId);
+      })
+      .catch((err) => log.warn({ err }, "presence update failed"));
+
+    socket.on("disconnect", () => {
+      clearInterval(heartbeat);
+      trackPresence(
+        (async () => {
+          try {
+            const { last } = await presence.disconnected(userId, socket.id);
+            if (last) {
+              await recordLastSeen(userId);
+              io.emit("user-offline", userId);
+            }
+          } catch (err) {
+            log.warn({ err }, "presence update failed");
+          }
+        })()
+      );
+    });
   });
 
   return io;

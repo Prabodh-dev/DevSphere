@@ -4,17 +4,23 @@ import {
   fetchChats,
   sendMessage,
   getMessages,
+  markRead,
 } from "../controllers/chatController.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
+import { limiters } from "../middlewares/rateLimit.js";
 import validate from "../middlewares/validate.js";
 import {
   accessChatBody,
   chatIdParams,
+  markReadBody,
   pageQuery,
   sendMessageBody,
 } from "../schemas/index.js";
 
 const router = express.Router();
+
+// Every route here is limited (the same limiter as the rest of /api).
+router.use(limiters.general);
 
 router.post(
   "/access",
@@ -34,6 +40,13 @@ router.get(
   authMiddleware,
   validate({ params: chatIdParams, query: pageQuery }),
   getMessages
+);
+
+router.put(
+  "/:chatId/read",
+  authMiddleware,
+  validate({ params: chatIdParams, body: markReadBody }),
+  markRead
 );
 
 export default router;

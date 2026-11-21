@@ -11,6 +11,7 @@ import liveCodeRoutes from "./liveCodeRoutes.js";
 import notificationRoutes from "./notificationRoutes.js";
 import adminRoutes from "./adminRoutes.js";
 import reportRoutes from "./reportRoutes.js";
+import presenceRoutes from "./presenceRoutes.js";
 
 // Every router and where it is mounted under /api/v1.
 export const mounts = [
@@ -25,6 +26,7 @@ export const mounts = [
   ["/notifications", notificationRoutes],
   ["/admin", adminRoutes],
   ["/report", reportRoutes],
+  ["/presence", presenceRoutes],
 ];
 
 const v1 = express.Router();

@@ -106,6 +106,16 @@ the Express app (for example to deliver a notification, close the sockets of a
 blocked user or remove a member from a chat room). The events are listed in
 [socket-events.md](socket-events.md).
 
+Messages from REST and from sockets go through one function
+(`services/chatService.js`), which saves them and emits from the server. The
+other real-time state lives in services too: online presence
+(`presenceService`), read markers (`readService`) and live code revisions and
+saving (`liveCodeService`). With `REDIS_URL` set, the Socket.IO Redis adapter
+shares rooms and events between instances, and the rate limit store, presence
+and live code working copies use Redis; without it each falls back to memory
+(see Scaling in the README). `utils/socketOps.js` applies room commands to the
+local sockets as well, so they work while Redis is down.
+
 ## Process
 
 `server.js` loads and checks the configuration, connects to MongoDB, starts the

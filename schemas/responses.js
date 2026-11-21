@@ -175,11 +175,44 @@ export const ChatListItem = z
     members: z.array(PublicUser),
     admins: z.array(id(ID2)),
     latestMessage: LatestMessage,
+    unreadCount: z.number().int().openapi({
+      description:
+        "Messages from other members after the last one you marked as read",
+      example: 2,
+    }),
     createdAt: date(WHEN),
     updatedAt: date(WHEN),
   })
   .loose()
   .openapi("ChatListItem");
+
+export const ReadState = z
+  .object({
+    chatId: id(ID2),
+    messageId: id(ID).openapi({
+      description: "The message you have read up to (it never moves back)",
+    }),
+    unreadCount: z.number().int(),
+    changed: z.boolean().openapi({
+      description: "False when the given message was not ahead of the marker",
+    }),
+  })
+  .openapi("ReadState");
+
+export const PresenceItem = z
+  .object({
+    userId: id(ID),
+    online: z.boolean(),
+    lastSeen: date(WHEN).nullable().openapi({
+      description:
+        "When the user's last connection closed; null while online or if unknown",
+    }),
+  })
+  .openapi("PresenceItem");
+
+export const PresenceList = z
+  .object({ items: z.array(PresenceItem) })
+  .openapi("PresenceList");
 
 export const Message = z
   .object({
@@ -246,6 +279,11 @@ export const LiveCodeDoc = z
     code: z.string(),
     language: z.string(),
     fileName: z.string(),
+    revision: z.number().int().openapi({
+      description:
+        "Goes up by one for every accepted edit; edits name the revision they were made on",
+      example: 4,
+    }),
     updatedBy: id(ID).optional(),
     createdAt: date(WHEN),
     updatedAt: date(WHEN),

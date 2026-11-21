@@ -93,6 +93,8 @@ export const sendMessageBody = z
     }
   });
 
+export const markReadBody = z.object({ messageId: objectId });
+
 // ---- groups ----
 export const createGroupBody = z.object({
   chatName: text(100),
@@ -139,4 +141,20 @@ export const highlightBody = z.object({
 
 export const reportsQuery = pageQuery.extend({
   status: z.enum(["open", "resolved", "all"]).default("open"),
+});
+
+// ---- presence ----
+const MAX_PRESENCE_IDS = 100;
+export const presenceQuery = z.object({
+  ids: z
+    .string()
+    .min(1)
+    .max(MAX_PRESENCE_IDS * 25)
+    .refine((value) => {
+      const ids = value.split(",");
+      return (
+        ids.length <= MAX_PRESENCE_IDS &&
+        ids.every((id) => /^[0-9a-fA-F]{24}$/.test(id))
+      );
+    }, `must be at most ${MAX_PRESENCE_IDS} comma separated user ids`),
 });

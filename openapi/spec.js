@@ -343,6 +343,20 @@ route({
   errors: [403, 404],
 });
 route({
+  method: "put",
+  path: "/chat/{chatId}/read",
+  tags: ["Chat"],
+  summary: "Mark a chat as read up to a message",
+  description:
+    "Only members can do this, and the marker only moves forward: an older message changes nothing. A change is sent to the chat as a `read-receipt` socket event.",
+  auth: "bearer",
+  params: S.chatIdParams,
+  body: S.markReadBody,
+  bodyExample: { messageId: "665f1c2a9b1e8a0012a4c010" },
+  response: R.ReadState,
+  errors: [403, 404],
+});
+route({
   method: "get",
   path: "/chat/message/{chatId}",
   tags: ["Chat"],
@@ -450,6 +464,17 @@ route({
 });
 route({
   method: "get",
+  path: "/presence",
+  tags: ["Presence"],
+  summary: "Who is online",
+  description:
+    "Online state and last seen time of up to 100 users. Only people you share a chat with or follow (and you) are returned; other ids are left out of the answer.",
+  auth: "bearer",
+  query: S.presenceQuery,
+  response: R.PresenceList,
+});
+route({
+  method: "get",
   path: "/notifications",
   tags: ["Notifications"],
   summary: "Your notifications, newest first",
@@ -545,6 +570,7 @@ export function buildOpenApiDocument() {
       "Status",
       "Snippets",
       "Live code",
+      "Presence",
       "Notifications",
       "Reports",
       "Admin",

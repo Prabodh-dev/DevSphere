@@ -5,7 +5,7 @@ import User from "../models/User.js";
 import { refreshLatestMessage } from "../utils/chatPreview.js";
 import { badRequest, notFound } from "../utils/httpError.js";
 import { paginate } from "../utils/pagination.js";
-import { userRoom } from "../utils/rooms.js";
+import { disconnectUser } from "../utils/socketOps.js";
 import { deleteMedia } from "../utils/s3Utils.js";
 import { revokeAllForUser } from "./sessionService.js";
 
@@ -23,7 +23,7 @@ export async function setBlocked(userId, isBlocked, actingUserId, io) {
 
   if (isBlocked) {
     await revokeAllForUser(user._id, io);
-    io?.in(userRoom(userId)).disconnectSockets(true);
+    disconnectUser(io, userId);
   }
 }
 

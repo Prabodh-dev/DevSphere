@@ -29,6 +29,8 @@ const userSchema = new mongoose.Schema(
     avatarKey: { type: String, default: "", maxlength: 300 },
     role: { type: String, enum: ["user", "admin"], default: "user" },
     isBlocked: { type: Boolean, default: false },
+    // Set when the user's last connection closes.
+    lastSeenAt: { type: Date },
     tags: {
       type: [String],
       index: true,

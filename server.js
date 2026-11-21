@@ -3,6 +3,7 @@ import http from "http";
 import app from "./app.js";
 import { setupSocketIO } from "./socket.js";
 import { closeRedis } from "./config/redis.js";
+import { flushLiveCode } from "./services/liveCodeService.js";
 import { config, getEnvProblems } from "./config/index.js";
 import { logger } from "./utils/logger.js";
 import { createShutdown, installProcessGuards } from "./utils/shutdown.js";
@@ -26,6 +27,8 @@ const shutdown = createShutdown({
         server.closeIdleConnections?.();
       });
     }
+    // Edits waiting for their save go to the database before it closes.
+    await flushLiveCode();
     await closeRedis();
     await mongoose.connection.close();
   },
