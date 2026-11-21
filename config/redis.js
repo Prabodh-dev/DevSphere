@@ -81,7 +81,8 @@ export const createAdapterClients = () => {
   if (!url) return null;
 
   const pub = buildClient(url);
-  const sub = pub.duplicate();
+  // Not pub.duplicate(): a duplicate does not inherit the error handler.
+  const sub = buildClient(url);
   for (const client of [pub, sub]) {
     extraClients.add(client);
     client.connect().catch((err) => {

@@ -7,7 +7,14 @@ import { withEnv } from "./helpers/config.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const LIMIT = 4;
-const ROUTERS = ["/chat", "/presence"];
+const ROUTERS = [
+  "/chat",
+  "/presence",
+  "/snippets",
+  "/notifications",
+  "/status",
+  "/group",
+];
 const SOME_ID = "665f1c2a9b1e8a0012a4c001";
 
 let app;
@@ -54,7 +61,7 @@ const send = (route, client) =>
 describe("rate limits on the chat and presence routes", () => {
   it("finds the routes of both routers", () => {
     const routes = routesOf(ROUTERS).map((r) => `${r.method} ${r.url}`);
-    expect(routes.length).toBeGreaterThanOrEqual(6);
+    expect(routes.length).toBeGreaterThanOrEqual(12);
     expect(
       routes.some((r) => r.startsWith("put ") && r.endsWith("/read"))
     ).toBe(true);
@@ -103,7 +110,14 @@ describe("rate limits on the chat and presence routes", () => {
 
 describe("the routers", () => {
   it("apply the limiter where the routes are declared", () => {
-    for (const file of ["routes/chatRoutes.js", "routes/presenceRoutes.js"]) {
+    for (const file of [
+      "routes/chatRoutes.js",
+      "routes/presenceRoutes.js",
+      "routes/snippetRoutes.js",
+      "routes/notificationRoutes.js",
+      "routes/statusRoutes.js",
+      "routes/groupRoutes.js",
+    ]) {
       const source = readFileSync(path.join(root, file), "utf8");
       expect(source, file).toMatch(/router\.use\(\s*limiters\.general\s*\)/);
     }

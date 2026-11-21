@@ -21,6 +21,14 @@ const messageSchema = new mongoose.Schema(
       enum: ["text", "media", "code"],
       default: "text",
     },
+    // For media messages: what was stored. Only the key is private; clients
+    // get a signed link instead of it.
+    media: {
+      mimeType: { type: String, maxlength: 100 },
+      key: { type: String, maxlength: 300 },
+      size: { type: Number, min: 0 },
+      fileName: { type: String, maxlength: 255 },
+    },
     code: {
       language: { type: String, maxlength: 50 },
       content: { type: String, maxlength: 100000 },
@@ -31,9 +39,12 @@ const messageSchema = new mongoose.Schema(
 
 messageSchema.index({ chat: 1, createdAt: -1 });
 
-// Code messages carry code, every other kind carries text.
+// Code messages carry code, media messages a stored file, every other kind
+// carries text.
 messageSchema.pre("validate", function () {
-  if (this.type === "code") {
+  if (this.type === "media") {
+    if (!this.media?.key) this.invalidate("media.key", "media.key is required");
+  } else if (this.type === "code") {
     if (!this.code?.content) {
       this.invalidate("code.content", "code.content is required");
     }

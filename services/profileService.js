@@ -39,7 +39,7 @@ export async function saveProfile(currentUser, { tags, ...fields }, file) {
   const profile = await UserProfile.findOneAndUpdate(
     { user: currentUser._id },
     profileData,
-    { new: true, upsert: true }
+    { returnDocument: "after", upsert: true }
   );
 
   if (previousKey) await deleteMedia(previousKey);

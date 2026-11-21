@@ -14,3 +14,6 @@ export const mp4 = (size) =>
   );
 export const html = () =>
   Buffer.from("<html><script>1</script></html>".repeat(3));
+export const pdf = (size) => pad(Buffer.from("%PDF-1.7\n", "latin1"), size);
+export const zip = (size) =>
+  pad(Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00]), size);

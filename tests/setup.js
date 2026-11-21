@@ -38,6 +38,8 @@ const defaults = {
   MEDIA_URL_TTL_SECONDS: "300",
   // Live code edits are saved this long after the last one.
   LIVE_CODE_FLUSH_MS: "200",
+  CHAT_IMAGE_MAX_MB: "10",
+  CHAT_FILE_MAX_MB: "20",
 };
 
 // Each test file gets its own database and Redis key prefix, so files never
@@ -59,6 +61,16 @@ process.env.REDIS_URL = process.env.REDIS_URL || "redis://127.0.0.1:6379";
 const suiteEnv = { ...process.env };
 const CONTROLLED = ["REDIS_URL", "REDIS_KEY_PREFIX", "TEST_DB_NAME"];
 
+// Mongoose warns (once per process) about options it is going to remove. The
+// suite must stay free of them, so they fail the file that triggers them.
+const mongooseWarnings = [];
+const onWarning = (warning) => {
+  if (/mongoose/i.test(`${warning.name} ${warning.message}`)) {
+    mongooseWarnings.push(warning.message);
+  }
+};
+process.on("warning", onWarning);
+
 beforeAll(async () => {
   // `config` is read once per module load; point it at this file's settings.
   const { reloadConfig } = await import("../config/index.js");
@@ -66,6 +78,13 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Warnings are delivered a moment after they are raised.
+  await new Promise((resolve) => setImmediate(resolve));
+  process.off("warning", onWarning);
+  if (mongooseWarnings.length) {
+    throw new Error(`Mongoose warned: ${mongooseWarnings[0]}`);
+  }
+
   const { closeRedis } = await import("../config/redis.js");
   await closeRedis();
 

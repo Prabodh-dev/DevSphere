@@ -32,9 +32,9 @@ export const profileView = async (profile, user, counts) => {
 };
 
 // Populated `user` fields must have been selected with "username avatarKey".
-export const statusView = async (status) => {
+export const statusView = async (status, likedByMe = false) => {
   const { mediaKey, user, ...rest } = status.toObject();
-  const view = { ...rest };
+  const view = { ...rest, likedByMe };
   if (user && typeof user === "object" && user.username !== undefined) {
     view.user = await publicUserView(user);
   } else {
@@ -74,6 +74,44 @@ export const notificationView = async (notification) => {
   const plain = notification.toObject();
   if (plain.fromUser && plain.fromUser.username !== undefined) {
     plain.fromUser = await publicUserView(plain.fromUser);
+  }
+  return plain;
+};
+
+// A message as shown to clients. A media message carries its type, size, file
+// name and a short-lived signed link, never the stored key.
+export const messageView = async (message) => {
+  const plain =
+    typeof message.toJSON === "function" ? message.toJSON() : message;
+  if (plain.type !== "media" || !plain.media) return plain;
+
+  const { key, mimeType, size, fileName } = plain.media;
+  return {
+    ...plain,
+    media: {
+      kind: mimeType?.startsWith("image/") ? "image" : "file",
+      mimeType,
+      size,
+      fileName,
+      url: await getSignedMediaUrl(key),
+    },
+  };
+};
+
+// A snippet with its owner's public fields.
+export const snippetView = async (snippet) => {
+  const plain = snippet.toObject();
+  if (plain.owner && plain.owner.username !== undefined) {
+    plain.owner = await publicUserView(plain.owner);
+  }
+  return plain;
+};
+
+// A reply with its author's public fields.
+export const replyView = async (reply) => {
+  const plain = reply.toObject();
+  if (plain.user && plain.user.username !== undefined) {
+    plain.user = await publicUserView(plain.user);
   }
   return plain;
 };

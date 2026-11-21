@@ -16,6 +16,14 @@ export function detectMime(buffer) {
   if (ascii(buffer, 0, 4) === "RIFF" && ascii(buffer, 8, 12) === "WEBP") {
     return "image/webp";
   }
+  if (ascii(buffer, 0, 5) === "%PDF-") return "application/pdf";
+  // Local file header, or the end record of an empty archive.
+  if (
+    startsWith(buffer, [0x50, 0x4b, 0x03, 0x04]) ||
+    startsWith(buffer, [0x50, 0x4b, 0x05, 0x06])
+  ) {
+    return "application/zip";
+  }
   if (startsWith(buffer, [0x1a, 0x45, 0xdf, 0xa3])) return "video/webm";
   if (ascii(buffer, 4, 8) === "ftyp") {
     return ascii(buffer, 8, 12) === "qt  " ? "video/quicktime" : "video/mp4";
@@ -29,6 +37,8 @@ export const IMAGE_TYPES = [
   "image/webp",
   "image/gif",
 ];
+// Files that can be sent in a chat besides images.
+export const CHAT_FILE_TYPES = ["application/pdf", "application/zip"];
 export const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
 
 export const EXTENSIONS = {
@@ -39,4 +49,6 @@ export const EXTENSIONS = {
   "video/mp4": "mp4",
   "video/webm": "webm",
   "video/quicktime": "mov",
+  "application/pdf": "pdf",
+  "application/zip": "zip",
 };

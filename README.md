@@ -9,12 +9,15 @@ with Node.js, Express and MongoDB.
 - Registration and login with short-lived access tokens and rotating refresh tokens
 - Developer profiles (bio, links, tags, avatar upload to S3)
 - Follow / unfollow, tags and tag search
-- One-to-one and group chat, with text and code messages
-- Real-time delivery, typing indicators and online presence over Socket.IO
-- 24-hour status posts (text, image, video)
-- Server-side syntax highlighting for code snippets
-- Shared live code document per chat
-- Notifications, content reports and basic admin endpoints
+- One-to-one and group chat with text, code, image and file (PDF, ZIP) messages, read markers and unread counts
+- Groups: leave, promote and demote admins, rename, remove members, delete
+- Real-time delivery from the server, typing indicators, read receipts and online presence over Socket.IO
+- 24-hour status posts (text, image, video) with likes, replies and view counts
+- Saved code snippets (public or private, with tags and language), and server-side syntax highlighting
+- Shared live code document per chat, with revisions and conflict replies
+- Notifications for followers, status likes and replies, mentions and groups, with an unread count
+- Content reports (messages, statuses, snippets, users) and basic admin endpoints
+- Several instances behind a load balancer, with Redis (see Scaling)
 
 ## Tech stack
 
@@ -43,43 +46,49 @@ the process is up and connected to the database.
 
 Copy `.env.example` to `.env` and set:
 
-| Variable                   | Required    | Purpose                                                                                              |
-| -------------------------- | ----------- | ---------------------------------------------------------------------------------------------------- |
-| `MONGO_URI`                | yes         | MongoDB connection string                                                                            |
-| `JWT_SECRET`               | yes         | Secret used to sign tokens, at least 32 characters                                                   |
-| `PORT`                     | no          | HTTP port, defaults to `5000`                                                                        |
-| `NODE_ENV`                 | no          | `development`, `test` or `production`                                                                |
-| `MONGO_AUTO_INDEX`         | no          | `true` or `false`; build missing indexes at startup, default `true` except in production             |
-| `DOCS_ENABLED`             | no          | `true` or `false`; serve the API docs page and OpenAPI document, default `true` except in production |
-| `LOG_LEVEL`                | no          | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`, default `info`                       |
-| `LOG_PRETTY`               | no          | `true` for human readable logs instead of JSON, default `false`                                      |
-| `METRICS_ENABLED`          | no          | `true` to serve Prometheus metrics at `/metrics`, default `false`                                    |
-| `METRICS_TOKEN`            | no          | When set, `/metrics` needs this value as a bearer token                                              |
-| `CORS_ORIGINS`             | no          | Comma separated browser origins allowed to call the API (none if empty)                              |
-| `TRUST_PROXY`              | no          | Number of reverse proxies in front of the app, default `0`                                           |
-| `ACCESS_TOKEN_TTL`         | no          | Access token lifetime (`30s`, `15m`, `2h`, `1d`), default `15m`                                      |
-| `REFRESH_TOKEN_TTL_DAYS`   | no          | Refresh token lifetime in days, default `30`                                                         |
-| `COOKIE_SECURE`            | no          | `true` when served over HTTPS, so the refresh cookie is `Secure`                                     |
-| `REFRESH_RATE_LIMIT_MAX`   | no          | Refresh requests per 15 minutes, default `60`                                                        |
-| `REDIS_URL`                | no          | Redis URL, to run several instances (see Scaling); the app works without it                          |
-| `LIVE_CODE_FLUSH_MS`       | no          | Milliseconds live code edits wait before they are saved, default `2000`                              |
-| `REDIS_KEY_PREFIX`         | no          | Prefix for the Redis keys the app writes, default none                                               |
-| `RATE_LIMIT_MAX`           | no          | Requests per 15 minutes for `/api`, default `300`                                                    |
-| `AUTH_RATE_LIMIT_MAX`      | no          | Login and register requests per 15 minutes, default `10`                                             |
-| `HIGHLIGHT_RATE_LIMIT_MAX` | no          | Snippet highlight requests per minute, default `30`                                                  |
-| `AWS_ACCESS_KEY`           | for uploads | AWS access key id (optional if the environment provides AWS credentials)                             |
-| `AWS_SECRET_KEY`           | for uploads | AWS secret access key                                                                                |
-| `AWS_REGION`               | for uploads | AWS region of the bucket                                                                             |
-| `AVATAR_BUCKET`            | for uploads | S3 bucket for avatars and status media                                                               |
-| `MEDIA_URL_TTL_SECONDS`    | no          | Lifetime of signed media links, default `300`, at most `3600`                                        |
+| Variable                   | Required    | Purpose                                                                                                           |
+| -------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------- |
+| `MONGO_URI`                | yes         | MongoDB connection string                                                                                         |
+| `JWT_SECRET`               | yes         | Secret used to sign tokens, at least 32 characters                                                                |
+| `PORT`                     | no          | HTTP port, defaults to `5000`                                                                                     |
+| `NODE_ENV`                 | no          | `development`, `test` or `production`                                                                             |
+| `MONGO_AUTO_INDEX`         | no          | `true` or `false`; build missing indexes at startup, default `true` except in production                          |
+| `DOCS_ENABLED`             | no          | `true` or `false`; serve the API docs page and OpenAPI document, default `true` except in production              |
+| `LOG_LEVEL`                | no          | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`, default `info`                                    |
+| `LOG_PRETTY`               | no          | `true` for human readable logs instead of JSON, default `false`                                                   |
+| `METRICS_ENABLED`          | no          | `true` to serve Prometheus metrics at `/metrics`, default `false`                                                 |
+| `METRICS_TOKEN`            | no          | When set, `/metrics` needs this value as a bearer token                                                           |
+| `CORS_ORIGINS`             | no          | Comma separated browser origins allowed to call the API (none if empty)                                           |
+| `TRUST_PROXY`              | no          | Number of reverse proxies in front of the app (recommended), or a list of their addresses or subnets; default `0` |
+| `ACCESS_TOKEN_TTL`         | no          | Access token lifetime (`30s`, `15m`, `2h`, `1d`), default `15m`                                                   |
+| `REFRESH_TOKEN_TTL_DAYS`   | no          | Refresh token lifetime in days, default `30`                                                                      |
+| `COOKIE_SECURE`            | no          | `true` when served over HTTPS, so the refresh cookie is `Secure`                                                  |
+| `REFRESH_RATE_LIMIT_MAX`   | no          | Refresh requests per 15 minutes, default `60`                                                                     |
+| `REDIS_URL`                | no          | Redis URL, to run several instances (see Scaling); the app works without it                                       |
+| `LIVE_CODE_FLUSH_MS`       | no          | Milliseconds live code edits wait before they are saved, default `2000`                                           |
+| `REDIS_KEY_PREFIX`         | no          | Prefix for the Redis keys the app writes, default none                                                            |
+| `RATE_LIMIT_MAX`           | no          | Requests per 15 minutes for `/api`, default `300`                                                                 |
+| `AUTH_RATE_LIMIT_MAX`      | no          | Login and register requests per 15 minutes, default `10`                                                          |
+| `HIGHLIGHT_RATE_LIMIT_MAX` | no          | Snippet highlight requests per minute, default `30`                                                               |
+| `AWS_ACCESS_KEY`           | for uploads | AWS access key id (optional if the environment provides AWS credentials)                                          |
+| `AWS_SECRET_KEY`           | for uploads | AWS secret access key                                                                                             |
+| `AWS_REGION`               | for uploads | AWS region of the bucket                                                                                          |
+| `AVATAR_BUCKET`            | for uploads | S3 bucket for avatars and status media                                                                            |
+| `MEDIA_URL_TTL_SECONDS`    | no          | Lifetime of signed media links, default `300`, at most `3600`                                                     |
+| `CHAT_IMAGE_MAX_MB`        | no          | Largest image that can be sent in a chat, in megabytes, default `10`                                              |
+| `CHAT_FILE_MAX_MB`         | no          | Largest PDF or ZIP file that can be sent in a chat, in megabytes, default `20`                                    |
 
 The server exits at startup if `MONGO_URI` or `JWT_SECRET` is missing, if
 `JWT_SECRET` is shorter than 32 characters, if a duration or count above is
 invalid, or if it cannot connect to MongoDB.
 
-Behind a reverse proxy, set `TRUST_PROXY` to the number of proxies so rate
-limiting sees the real client address. With the default `0` forwarded headers
-are ignored.
+Behind a reverse proxy, set `TRUST_PROXY` to the number of proxies in front of
+the app (a hop count is the recommended value in production) so rate limiting
+sees the real client address. A comma separated list of proxy addresses or
+subnets (`10.0.0.0/8, loopback`) is also accepted. With the default `0`
+forwarded headers are ignored. A bare `true` trusts every client's
+`X-Forwarded-For` header, so any client can choose the address the rate limits
+see; it still works but logs a warning at startup.
 
 ## Authentication
 
@@ -144,6 +153,10 @@ erDiagram
     Chat ||--o{ ChatRead : "read markers"
     User ||--o{ ChatRead : "has read up to"
     User ||--o{ Status : "posts"
+    User ||--o{ Snippet : "saves"
+    Status ||--o{ StatusLike : "liked by"
+    Status ||--o{ StatusReply : "replies"
+    Status ||--o{ StatusView : "viewed by"
     User ||--o{ Notification : "receives"
     User ||--o{ Report : "files"
 
@@ -197,10 +210,34 @@ erDiagram
         id lastReadMessage
         date lastReadAt
     }
+    Snippet {
+        id owner
+        string title
+        string code
+        string language
+        string[] tags
+        string visibility
+    }
     Status {
         string type
         date visibleUntil
         date expiresAt
+        number likeCount
+        number replyCount
+        number viewCount
+    }
+    StatusLike {
+        id status
+        id user
+    }
+    StatusReply {
+        id status
+        id user
+        string text
+    }
+    StatusView {
+        id status
+        id user
     }
     Notification {
         string type
@@ -357,6 +394,27 @@ revision, and a stale edit is answered with a conflict and the current
 document. Read markers, read receipts and online presence are described in
 [docs/socket-events.md](docs/socket-events.md).
 
+## Notifications
+
+The server creates notifications itself and pushes them to the user's open
+sockets as `receive-notification`; `GET /api/v1/notifications` lists them.
+Each has a `type`:
+
+- `follow`: someone followed you
+- `like`: someone liked your status
+- `reply`: someone replied to your status
+- `mention`: someone wrote `@yourusername` in a chat you are a member of
+- `group`: someone added you to a group
+
+Nobody is notified about their own actions, and a notification that would repeat
+an earlier one (following again, liking again) is not created a second time.
+Notifications about content that is deleted (a status, a message, a group) are
+deleted with it. `seen` tells whether one has been read:
+`GET /api/v1/notifications/unread-count` returns `{ unreadCount }`,
+`PATCH /api/v1/notifications/{id}/read` marks one and
+`PATCH /api/v1/notifications/read-all` marks all of them. (`message` and
+`status` are older kinds that are no longer created.)
+
 ## Scaling
 
 One instance needs nothing but MongoDB. To run several instances behind a load
@@ -421,12 +479,13 @@ Other areas
 
 - `/profile`: `POST /` (bio, links, tags and an optional `avatar` file), `GET /me`, `GET /:userId` (public). Responses include follower and following counts.
 - `/users`: follow and unfollow, paged `GET /:id/followers` and `/following`, `PATCH /me/tags`, paged `GET /?tag=`.
-- `/chat`: `POST /access`, paged `GET /` (with `unreadCount`), `POST /message`, paged `GET /message/:chatId`, `PUT /:chatId/read` (move your read marker forward).
+- `/chat`: `POST /access`, paged `GET /` (with `unreadCount`), `POST /message`, `POST /media` (an image, PDF or ZIP file as multipart `file` with `chatId`; `503 UPLOADS_NOT_CONFIGURED` without storage), paged `GET /message/:chatId`, `PUT /:chatId/read` (move your read marker forward). Media messages carry a signed link, never the storage key.
 - `/presence`: `GET /?ids=a,b,c` (up to 100 user ids): online state and last seen time of yourself, people you share a chat with and people you follow. Other ids are left out.
-- `/group`: `POST /create`, `PATCH /add`, `/remove`, `/rename`.
-- `/status`: `POST /` (text, image or video), paged `GET /feed`.
-- `/snippets/highlight` (public, rate limited), `/live-code/:chatId` (with its `revision`), paged `/notifications`, `/report` (the target must exist; one open report per user and target).
-- `/admin` (admin role only): paged users, block and unblock, paged `GET /reports?status=open|resolved|all`, `DELETE /remove/:type/:id` (message, status, or user, which blocks the account).
+- `/group`: `POST /create`, `PATCH /add`, `/remove`, `/rename`, `/leave`, `/promote`, `/demote` and `DELETE /:chatId`.
+- `/status`: `POST /` (text, image or video), paged `GET /feed`, `GET` and `DELETE /:id`, `PUT` and `DELETE /:id/like`, `POST` and paged `GET /:id/replies`, `POST /:id/view`. Statuses show `likeCount`, `replyCount`, `viewCount` and `likedByMe`. Only the owner and the people who follow them can see or interact with a status, and statuses of blocked accounts are hidden.
+- `/snippets`: `POST /`, paged `GET /` (public snippets by `tag` and `language`), paged `GET /mine` and `GET /user/:userId` (public ones), `GET`, `PATCH` and `DELETE /:id`. Snippets are private by default; a private one can only be read by its owner. `POST /snippets/highlight` stays public and rate limited.
+- `/live-code/:chatId` (with its `revision`), `/notifications` (paged list, `unread-count`, `PATCH /:id/read`, `PATCH /read-all`), `/report` (messages, statuses, public snippets and users; the target must exist; one open report per user and target).
+- `/admin` (admin role only): paged users, block and unblock, paged `GET /reports?status=open|resolved|all`, `DELETE /remove/:type/:id` (message, status, snippet, or user, which blocks the account).
 - `GET /healthz` (not versioned): process and database status.
 
 ## Scripts

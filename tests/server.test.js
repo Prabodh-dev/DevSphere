@@ -101,6 +101,30 @@ describe("server startup", () => {
     await exited;
   }, 30000);
 
+  it("warns at startup about TRUST_PROXY=true, and not about a hop count", async () => {
+    const run = async (value) => {
+      const port = await freePort();
+      const { child, exited, output } = startServer({
+        MONGO_URI: testMongoUri(),
+        JWT_SECRET: "test-only-secret-that-is-long-enough-123",
+        PORT: String(port),
+        TRUST_PROXY: value,
+      });
+      await waitForHealthy(port);
+      child.kill();
+      await exited;
+      return output();
+    };
+
+    const risky = await run("true");
+    expect(risky).toContain("TRUST_PROXY=true");
+    expect(
+      JSON.parse(risky.split("\n").find((l) => l.includes("TRUST_PROXY=true")))
+        .level
+    ).toBe("warn");
+    expect(await run("1")).not.toContain("TRUST_PROXY=true");
+  }, 60000);
+
   // Windows terminates the child immediately instead of delivering SIGTERM.
   it.skipIf(process.platform === "win32")(
     "shuts down cleanly on SIGTERM",

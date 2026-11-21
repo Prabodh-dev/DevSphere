@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { detectMime } from "../utils/fileType.js";
-import { png, jpeg, gif, mp4, html } from "./helpers/files.js";
+import { png, jpeg, gif, mp4, html, pdf, zip } from "./helpers/files.js";
 
 describe("detectMime", () => {
   it("recognises the supported formats from their bytes", () => {
@@ -28,6 +28,16 @@ describe("detectMime", () => {
       Buffer.alloc(8),
     ]);
     expect(detectMime(mov)).toBe("video/quicktime");
+  });
+
+  it("recognises PDF and ZIP files", () => {
+    expect(detectMime(pdf())).toBe("application/pdf");
+    expect(detectMime(zip())).toBe("application/zip");
+    const empty = Buffer.concat([
+      Buffer.from([0x50, 0x4b, 0x05, 0x06]),
+      Buffer.alloc(18),
+    ]);
+    expect(detectMime(empty)).toBe("application/zip");
   });
 
   it("returns null for anything else", () => {
