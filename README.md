@@ -9,12 +9,15 @@ with Node.js, Express and MongoDB.
 - Registration and login with short-lived access tokens and rotating refresh tokens
 - Developer profiles (bio, links, tags, avatar upload to S3)
 - Follow / unfollow, tags and tag search
-- One-to-one and group chat, with text and code messages
-- Real-time delivery, typing indicators and online presence over Socket.IO
-- 24-hour status posts (text, image, video)
-- Server-side syntax highlighting for code snippets
-- Shared live code document per chat
-- Notifications, content reports and basic admin endpoints
+- One-to-one and group chat with text, code, image and file (PDF, ZIP) messages, read markers and unread counts
+- Groups: leave, promote and demote admins, rename, remove members, delete
+- Real-time delivery from the server, typing indicators, read receipts and online presence over Socket.IO
+- 24-hour status posts (text, image, video) with likes, replies and view counts
+- Saved code snippets (public or private, with tags and language), and server-side syntax highlighting
+- Shared live code document per chat, with revisions and conflict replies
+- Notifications for followers, status likes and replies, mentions and groups, with an unread count
+- Content reports (messages, statuses, snippets, users) and basic admin endpoints
+- Several instances behind a load balancer, with Redis (see Scaling)
 
 ## Tech stack
 
@@ -476,12 +479,13 @@ Other areas
 
 - `/profile`: `POST /` (bio, links, tags and an optional `avatar` file), `GET /me`, `GET /:userId` (public). Responses include follower and following counts.
 - `/users`: follow and unfollow, paged `GET /:id/followers` and `/following`, `PATCH /me/tags`, paged `GET /?tag=`.
-- `/chat`: `POST /access`, paged `GET /` (with `unreadCount`), `POST /message`, paged `GET /message/:chatId`, `PUT /:chatId/read` (move your read marker forward).
+- `/chat`: `POST /access`, paged `GET /` (with `unreadCount`), `POST /message`, `POST /media` (an image, PDF or ZIP file as multipart `file` with `chatId`; `503 UPLOADS_NOT_CONFIGURED` without storage), paged `GET /message/:chatId`, `PUT /:chatId/read` (move your read marker forward). Media messages carry a signed link, never the storage key.
 - `/presence`: `GET /?ids=a,b,c` (up to 100 user ids): online state and last seen time of yourself, people you share a chat with and people you follow. Other ids are left out.
 - `/group`: `POST /create`, `PATCH /add`, `/remove`, `/rename`, `/leave`, `/promote`, `/demote` and `DELETE /:chatId`.
-- `/status`: `POST /` (text, image or video), paged `GET /feed`.
-- `/snippets/highlight` (public, rate limited), `/live-code/:chatId` (with its `revision`), paged `/notifications`, `/report` (the target must exist; one open report per user and target).
-- `/admin` (admin role only): paged users, block and unblock, paged `GET /reports?status=open|resolved|all`, `DELETE /remove/:type/:id` (message, status, or user, which blocks the account).
+- `/status`: `POST /` (text, image or video), paged `GET /feed`, `GET` and `DELETE /:id`, `PUT` and `DELETE /:id/like`, `POST` and paged `GET /:id/replies`, `POST /:id/view`. Statuses show `likeCount`, `replyCount`, `viewCount` and `likedByMe`. Only the owner and the people who follow them can see or interact with a status, and statuses of blocked accounts are hidden.
+- `/snippets`: `POST /`, paged `GET /` (public snippets by `tag` and `language`), paged `GET /mine` and `GET /user/:userId` (public ones), `GET`, `PATCH` and `DELETE /:id`. Snippets are private by default; a private one can only be read by its owner. `POST /snippets/highlight` stays public and rate limited.
+- `/live-code/:chatId` (with its `revision`), `/notifications` (paged list, `unread-count`, `PATCH /:id/read`, `PATCH /read-all`), `/report` (messages, statuses, public snippets and users; the target must exist; one open report per user and target).
+- `/admin` (admin role only): paged users, block and unblock, paged `GET /reports?status=open|resolved|all`, `DELETE /remove/:type/:id` (message, status, snippet, or user, which blocks the account).
 - `GET /healthz` (not versioned): process and database status.
 
 ## Scripts

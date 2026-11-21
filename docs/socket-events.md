@@ -113,7 +113,7 @@ cannot send notifications.
 
 ## Sending messages
 
-`receive-message` carries the stored message, in the same shape as the items of
+`receive-message` carries the stored message (a media message has `media: { kind, mimeType, size, fileName, url }` with a short-lived signed link and never the storage key), in the same shape as the items of
 `GET /api/v1/chat/message/{chatId}` (`_id`, `chat`, `sender`, `type`, `text` or
 `code`, `createdAt`). It is delivered to the chat room and to the private room
 of every current member, once per socket. The sender's own sockets receive it
