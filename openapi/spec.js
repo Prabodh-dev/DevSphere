@@ -469,6 +469,90 @@ route({
   response: R.Highlighted,
 });
 route({
+  method: "post",
+  path: "/snippets",
+  tags: ["Snippets"],
+  summary: "Save a snippet",
+  description:
+    "Snippets are private unless `visibility` is `public`. Code is limited to 50000 characters, titles to 100, descriptions to 500, and a snippet has at most 10 tags (stored in lower case).",
+  auth: "bearer",
+  body: S.createSnippetBody,
+  bodyExample: {
+    title: "Debounce helper",
+    code: "const debounce = (fn, ms) => { /* ... */ };",
+    language: "javascript",
+    tags: ["utils"],
+    visibility: "public",
+  },
+  ok: 201,
+  response: R.Snippet,
+});
+route({
+  method: "get",
+  path: "/snippets",
+  tags: ["Snippets"],
+  summary: "Search public snippets",
+  description:
+    "Public snippets of everyone, newest first, optionally filtered by `tag` and `language`.",
+  auth: "bearer",
+  query: S.snippetListQuery,
+  response: paged("SnippetPage", R.Snippet),
+});
+route({
+  method: "get",
+  path: "/snippets/mine",
+  tags: ["Snippets"],
+  summary: "Your snippets, public and private",
+  auth: "bearer",
+  query: S.mySnippetsQuery,
+  response: paged("MySnippetPage", R.Snippet),
+});
+route({
+  method: "get",
+  path: "/snippets/user/{userId}",
+  tags: ["Snippets"],
+  summary: "The public snippets of a user",
+  auth: "bearer",
+  params: S.snippetUserParams,
+  query: S.snippetListQuery,
+  response: paged("UserSnippetPage", R.Snippet),
+  errors: [404],
+});
+route({
+  method: "get",
+  path: "/snippets/{id}",
+  tags: ["Snippets"],
+  summary: "Read a snippet",
+  description:
+    "Public snippets can be read by anyone signed in; a private snippet only by its owner (everyone else gets 404).",
+  auth: "bearer",
+  params: S.snippetIdParams,
+  response: R.Snippet,
+  errors: [404],
+});
+route({
+  method: "patch",
+  path: "/snippets/{id}",
+  tags: ["Snippets"],
+  summary: "Change one of your snippets",
+  auth: "bearer",
+  params: S.snippetIdParams,
+  body: S.updateSnippetBody,
+  bodyExample: { visibility: "private" },
+  response: R.Snippet,
+  errors: [404],
+});
+route({
+  method: "delete",
+  path: "/snippets/{id}",
+  tags: ["Snippets"],
+  summary: "Delete one of your snippets",
+  auth: "bearer",
+  params: S.snippetIdParams,
+  response: R.MessageResponse,
+  errors: [404],
+});
+route({
   method: "get",
   path: "/live-code/{chatId}",
   tags: ["Live code"],

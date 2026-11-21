@@ -97,3 +97,12 @@ export const messageView = async (message) => {
     },
   };
 };
+
+// A snippet with its owner's public fields.
+export const snippetView = async (snippet) => {
+  const plain = snippet.toObject();
+  if (plain.owner && plain.owner.username !== undefined) {
+    plain.owner = await publicUserView(plain.owner);
+  }
+  return plain;
+};

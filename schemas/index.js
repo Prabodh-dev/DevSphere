@@ -126,16 +126,58 @@ export const statusBody = z
 
 // ---- reports and admin ----
 export const reportBody = z.object({
-  targetType: z.enum(["message", "status", "user"]),
+  targetType: z.enum(["message", "status", "user", "snippet"]),
   targetId: objectId,
   reason: text(1000),
 });
 export const removeParams = z.object({
-  type: z.enum(["status", "message", "user"]),
+  type: z.enum(["status", "message", "user", "snippet"]),
   id: objectId,
 });
 
 // ---- snippets ----
+const snippetTags = z
+  .array(text(30).toLowerCase())
+  .max(10, "at most 10 tags are allowed");
+const snippetFields = {
+  title: text(100),
+  description: z.string().trim().max(500),
+  code: z.string().min(1).max(50000),
+  language: text(50),
+  tags: snippetTags,
+  visibility: z.enum(["public", "private"]),
+};
+export const createSnippetBody = z.object({
+  title: snippetFields.title,
+  description: snippetFields.description.optional(),
+  code: snippetFields.code,
+  language: snippetFields.language.optional(),
+  tags: snippetFields.tags.optional(),
+  visibility: snippetFields.visibility.default("private"),
+});
+export const updateSnippetBody = z
+  .object({
+    title: snippetFields.title.optional(),
+    description: snippetFields.description.optional(),
+    code: snippetFields.code.optional(),
+    language: snippetFields.language.optional(),
+    tags: snippetFields.tags.optional(),
+    visibility: snippetFields.visibility.optional(),
+  })
+  .refine((body) => Object.keys(body).length > 0, {
+    message: "send at least one field to change",
+  });
+export const snippetIdParams = z.object({ id: objectId });
+export const snippetUserParams = z.object({ userId: objectId });
+// Filters for lists of snippets.
+export const snippetListQuery = pageQuery.extend({
+  language: text(50).optional(),
+  tag: text(30).toLowerCase().optional(),
+});
+export const mySnippetsQuery = snippetListQuery.extend({
+  visibility: z.enum(["public", "private"]).optional(),
+});
+
 export const highlightBody = z.object({
   code: z.string().min(1).max(20000),
   language: text(50).optional(),

@@ -1,5 +1,6 @@
 import Message from "../models/Message.js";
 import Report from "../models/Report.js";
+import Snippet from "../models/Snippet.js";
 import Status from "../models/Status.js";
 import User from "../models/User.js";
 import { refreshLatestMessage } from "../utils/chatPreview.js";
@@ -54,7 +55,8 @@ export async function removeReported(admin, { type, id }, io) {
   if (type === "user") {
     await setBlocked(id, true, admin._id, io);
   } else {
-    const Model = type === "status" ? Status : Message;
+    const Model =
+      type === "status" ? Status : type === "snippet" ? Snippet : Message;
     const deleted = await Model.findByIdAndDelete(id);
     if (!deleted) throw notFound(`${type} not found`);
 

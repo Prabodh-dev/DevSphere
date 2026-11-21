@@ -150,6 +150,7 @@ erDiagram
     Chat ||--o{ ChatRead : "read markers"
     User ||--o{ ChatRead : "has read up to"
     User ||--o{ Status : "posts"
+    User ||--o{ Snippet : "saves"
     User ||--o{ Notification : "receives"
     User ||--o{ Report : "files"
 
@@ -202,6 +203,14 @@ erDiagram
         id user
         id lastReadMessage
         date lastReadAt
+    }
+    Snippet {
+        id owner
+        string title
+        string code
+        string language
+        string[] tags
+        string visibility
     }
     Status {
         string type

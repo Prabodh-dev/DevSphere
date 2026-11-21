@@ -273,6 +273,22 @@ export const StatusCreated = z
   .openapi("StatusCreated");
 
 // ---- other ----
+export const Snippet = z
+  .object({
+    _id: id(ID),
+    owner: PublicUser,
+    title: z.string().openapi({ example: "Debounce helper" }),
+    description: z.string(),
+    code: z.string(),
+    language: z.string().openapi({ example: "javascript" }),
+    tags: z.array(z.string()),
+    visibility: z.enum(["public", "private"]),
+    createdAt: date(WHEN),
+    updatedAt: date(WHEN),
+  })
+  .loose()
+  .openapi("Snippet");
+
 export const Highlighted = z
   .object({
     highlighted: z
