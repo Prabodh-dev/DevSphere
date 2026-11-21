@@ -124,6 +124,9 @@ export const statusBody = z
     }
   });
 
+export const statusIdParams = z.object({ id: objectId });
+export const statusReplyBody = z.object({ text: text(500) });
+
 // ---- reports and admin ----
 export const reportBody = z.object({
   targetType: z.enum(["message", "status", "user", "snippet"]),

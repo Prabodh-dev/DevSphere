@@ -261,6 +261,13 @@ export const StatusItem = z
     content: z.string().openapi({
       description: "The text, or a short-lived signed URL for media",
     }),
+    likeCount: z.number().int().openapi({ example: 3 }),
+    replyCount: z.number().int().openapi({ example: 1 }),
+    viewCount: z.number().int().openapi({
+      description: "People who viewed it, each counted once",
+      example: 12,
+    }),
+    likedByMe: z.boolean(),
     visibleUntil: date(WHEN),
     expiresAt: date(WHEN),
     createdAt: date(WHEN),
@@ -268,6 +275,25 @@ export const StatusItem = z
   })
   .loose()
   .openapi("Status");
+
+export const StatusReply = z
+  .object({
+    _id: id(ID),
+    status: id(ID2),
+    user: PublicUser,
+    text: z.string().openapi({ example: "Nice one!" }),
+    createdAt: date(WHEN),
+  })
+  .loose()
+  .openapi("StatusReply");
+
+export const LikeState = z
+  .object({ liked: z.boolean(), likeCount: z.number().int() })
+  .openapi("LikeState");
+
+export const ViewCount = z
+  .object({ viewCount: z.number().int() })
+  .openapi("ViewCount");
 
 export const StatusCreated = z
   .object({ message: z.string(), status: StatusItem })

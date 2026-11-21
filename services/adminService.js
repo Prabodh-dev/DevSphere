@@ -9,6 +9,7 @@ import { paginate } from "../utils/pagination.js";
 import { disconnectUser } from "../utils/socketOps.js";
 import { deleteMedia } from "../utils/s3Utils.js";
 import { removeNotificationsFor } from "./notificationService.js";
+import { removeStatus } from "./statusService.js";
 import { revokeAllForUser } from "./sessionService.js";
 
 // Blocks or unblocks an account. A blocked user is signed out everywhere and
@@ -61,7 +62,7 @@ export async function removeReported(admin, { type, id }, io) {
     const deleted = await Model.findByIdAndDelete(id);
     if (!deleted) throw notFound(`${type} not found`);
 
-    if (type === "status") await deleteMedia(deleted.mediaKey);
+    if (type === "status") await removeStatus(deleted);
     if (type === "message") {
       await deleteMedia(deleted.media?.key);
       await removeNotificationsFor({ messageId: deleted._id });

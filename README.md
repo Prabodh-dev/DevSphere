@@ -151,6 +151,9 @@ erDiagram
     User ||--o{ ChatRead : "has read up to"
     User ||--o{ Status : "posts"
     User ||--o{ Snippet : "saves"
+    Status ||--o{ StatusLike : "liked by"
+    Status ||--o{ StatusReply : "replies"
+    Status ||--o{ StatusView : "viewed by"
     User ||--o{ Notification : "receives"
     User ||--o{ Report : "files"
 
@@ -216,6 +219,22 @@ erDiagram
         string type
         date visibleUntil
         date expiresAt
+        number likeCount
+        number replyCount
+        number viewCount
+    }
+    StatusLike {
+        id status
+        id user
+    }
+    StatusReply {
+        id status
+        id user
+        string text
+    }
+    StatusView {
+        id status
+        id user
     }
     Notification {
         string type

@@ -8,6 +8,7 @@ import { config, getConfigWarnings, getEnvProblems } from "./config/index.js";
 import { logger } from "./utils/logger.js";
 import { createShutdown, installProcessGuards } from "./utils/shutdown.js";
 import { cleanupExpiredStatusMedia } from "./utils/mediaCleanup.js";
+import { removeNotificationsOfMissingStatuses } from "./services/statusService.js";
 
 const problems = getEnvProblems();
 if (problems.length > 0) {
@@ -51,8 +52,11 @@ async function start() {
 
   // Remove stored files of statuses that are no longer visible.
   const runCleanup = () =>
-    cleanupExpiredStatusMedia().catch((err) =>
-      logger.warn({ err: err.message }, "Status media cleanup failed")
+    Promise.all([
+      cleanupExpiredStatusMedia(),
+      removeNotificationsOfMissingStatuses(),
+    ]).catch((err) =>
+      logger.warn({ err: err.message }, "Status cleanup failed")
     );
   runCleanup();
   setInterval(runCleanup, 10 * 60 * 1000).unref();

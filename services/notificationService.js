@@ -62,6 +62,10 @@ export async function removeNotificationsFor({ statusId, messageId, chatId }) {
   return (await Notification.deleteMany(filter)).deletedCount;
 }
 
+// Removes one notification by its key (for example when a like is taken back).
+export const removeNotificationByKey = (userId, dedupeKey) =>
+  Notification.deleteOne({ user: userId, dedupeKey });
+
 // A user's notifications, newest first.
 export function listNotifications(userId, { limit, cursor }) {
   return paginate(Notification, {

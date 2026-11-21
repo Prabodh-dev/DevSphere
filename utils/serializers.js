@@ -32,9 +32,9 @@ export const profileView = async (profile, user, counts) => {
 };
 
 // Populated `user` fields must have been selected with "username avatarKey".
-export const statusView = async (status) => {
+export const statusView = async (status, likedByMe = false) => {
   const { mediaKey, user, ...rest } = status.toObject();
-  const view = { ...rest };
+  const view = { ...rest, likedByMe };
   if (user && typeof user === "object" && user.username !== undefined) {
     view.user = await publicUserView(user);
   } else {
@@ -103,6 +103,15 @@ export const snippetView = async (snippet) => {
   const plain = snippet.toObject();
   if (plain.owner && plain.owner.username !== undefined) {
     plain.owner = await publicUserView(plain.owner);
+  }
+  return plain;
+};
+
+// A reply with its author's public fields.
+export const replyView = async (reply) => {
+  const plain = reply.toObject();
+  if (plain.user && plain.user.username !== undefined) {
+    plain.user = await publicUserView(plain.user);
   }
   return plain;
 };

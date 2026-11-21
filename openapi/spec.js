@@ -458,6 +458,90 @@ route({
 });
 
 // ---- other ----
+const STATUS_VISIBLE =
+  "Statuses can be seen, liked and replied to by their owner and by the people who follow them, while they are active. Anything else (including statuses of blocked accounts) is answered with 404.";
+route({
+  method: "get",
+  path: "/status/{id}",
+  tags: ["Status"],
+  summary: "One status, with its counts",
+  description: STATUS_VISIBLE,
+  auth: "bearer",
+  params: S.statusIdParams,
+  response: R.StatusItem,
+  errors: [404],
+});
+route({
+  method: "delete",
+  path: "/status/{id}",
+  tags: ["Status"],
+  summary: "Delete your status",
+  description:
+    "Also removes its stored file, likes, replies, views and the notifications about it.",
+  auth: "bearer",
+  params: S.statusIdParams,
+  response: R.MessageResponse,
+  errors: [404],
+});
+route({
+  method: "put",
+  path: "/status/{id}/like",
+  tags: ["Status"],
+  summary: "Like a status",
+  description: `One like per user: repeating it changes nothing. The owner gets one notification. ${STATUS_VISIBLE}`,
+  auth: "bearer",
+  params: S.statusIdParams,
+  response: R.LikeState,
+  errors: [404],
+});
+route({
+  method: "delete",
+  path: "/status/{id}/like",
+  tags: ["Status"],
+  summary: "Take back a like",
+  description: "Harmless when there is no like.",
+  auth: "bearer",
+  params: S.statusIdParams,
+  response: R.LikeState,
+  errors: [404],
+});
+route({
+  method: "post",
+  path: "/status/{id}/replies",
+  tags: ["Status"],
+  summary: "Reply to a status",
+  description: `Text of up to 500 characters. The owner gets a notification. ${STATUS_VISIBLE}`,
+  auth: "bearer",
+  params: S.statusIdParams,
+  body: S.statusReplyBody,
+  bodyExample: { text: "Nice one!" },
+  ok: 201,
+  response: R.StatusReply,
+  errors: [404],
+});
+route({
+  method: "get",
+  path: "/status/{id}/replies",
+  tags: ["Status"],
+  summary: "Replies to a status, oldest first",
+  auth: "bearer",
+  params: S.statusIdParams,
+  query: S.pageQuery,
+  response: paged("StatusReplyPage", R.StatusReply),
+  errors: [404],
+});
+route({
+  method: "post",
+  path: "/status/{id}/view",
+  tags: ["Status"],
+  summary: "Count a view of a status",
+  description:
+    "Each user is counted once; the owner's own views do not count. Returns the number of views.",
+  auth: "bearer",
+  params: S.statusIdParams,
+  response: R.ViewCount,
+  errors: [404],
+});
 route({
   method: "post",
   path: "/snippets/highlight",
