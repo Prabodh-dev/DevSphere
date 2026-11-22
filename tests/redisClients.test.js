@@ -8,6 +8,7 @@ import {
   initRedis,
 } from "../config/redis.js";
 import { withEnv } from "./helpers/config.js";
+import { toPosix } from "./helpers/paths.js";
 import { captureLogs } from "./helpers/logs.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -18,7 +19,8 @@ function jsFiles(dir) {
     if (["node_modules", ".git"].includes(name)) continue;
     const file = path.join(dir, name);
     if (statSync(file).isDirectory()) found.push(...jsFiles(file));
-    else if (name.endsWith(".js")) found.push(path.relative(root, file));
+    else if (name.endsWith(".js"))
+      found.push(toPosix(path.relative(root, file)));
   }
   return found;
 }

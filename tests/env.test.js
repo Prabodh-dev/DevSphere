@@ -8,6 +8,7 @@ import {
   getEnvProblems,
   loadConfig,
 } from "../config/index.js";
+import { toPosix } from "./helpers/paths.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const LONG_SECRET = "x".repeat(32);
@@ -245,7 +246,7 @@ describe("environment access", () => {
     const offenders = files(root)
       .filter((file) => !file.endsWith(path.join("config", "index.js")))
       .filter((file) => /process\.env/.test(readFileSync(file, "utf8")))
-      .map((file) => path.relative(root, file));
+      .map((file) => toPosix(path.relative(root, file)));
     expect(offenders).toEqual([]);
   });
 });

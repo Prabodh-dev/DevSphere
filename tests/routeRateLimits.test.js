@@ -28,8 +28,9 @@ beforeAll(async () => {
     app = (await import("../app.js")).default;
     mounts = (await import("../routes/index.js")).mounts;
   });
-  // Each route gets its own client address.
-  app.set("trust proxy", true);
+  // One proxy in front: each route gets its own client address from the
+  // X-Forwarded-For header.
+  app.set("trust proxy", 1);
 });
 
 // "METHOD /api/v1/... " for every route of the given routers.

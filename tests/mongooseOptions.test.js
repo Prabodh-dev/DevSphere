@@ -4,6 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { connectTestDb, clearTestDb, disconnectTestDb } from "./helpers/db.js";
 import { createUser } from "./helpers/users.js";
+import { toPosix } from "./helpers/paths.js";
 import { updateTags } from "../services/userService.js";
 import { saveProfile } from "../services/profileService.js";
 
@@ -26,7 +27,9 @@ describe("Mongoose options", () => {
     const offenders = sources(root).filter((file) =>
       /\bnew:\s*true\b/.test(readFileSync(file, "utf8"))
     );
-    expect(offenders.map((file) => path.relative(root, file))).toEqual([]);
+    expect(offenders.map((file) => toPosix(path.relative(root, file)))).toEqual(
+      []
+    );
   });
 
   describe("updates that return the new document", () => {
