@@ -20,6 +20,7 @@ import { controlledEnv } from "./helpers/env.js";
 import { captureLogs, LEVELS } from "./helpers/logs.js";
 import { createUser, bearer } from "./helpers/users.js";
 import { withEnv } from "./helpers/config.js";
+import { toPosix } from "./helpers/paths.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -281,7 +282,7 @@ describe("no console output", () => {
   it("is left in the application code", () => {
     const offenders = files(root)
       .filter((file) => /\bconsole\.\w+\(/.test(readFileSync(file, "utf8")))
-      .map((file) => path.relative(root, file));
+      .map((file) => toPosix(path.relative(root, file)));
     expect(offenders).toEqual([]);
   });
 });

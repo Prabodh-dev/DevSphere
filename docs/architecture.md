@@ -2,7 +2,7 @@
 
 DevSphere is one Node.js process: an Express app and a Socket.IO server sharing
 the same HTTP server, with MongoDB for data, Redis (optional) for online
-presence and S3 for uploaded files.
+presence, shared limits and live state, and S3 for uploaded files.
 
 ## Layers
 
@@ -115,6 +115,14 @@ shares rooms and events between instances, and the rate limit store, presence
 and live code working copies use Redis; without it each falls back to memory
 (see Scaling in the README). `utils/socketOps.js` applies room commands to the
 local sockets as well, so they work while Redis is down.
+
+Features that touch several records live in services: `chatService` (messages,
+media messages), `mentionService`, `notificationService` (the one place
+notifications are created, with de-duplication and live delivery),
+`statusService` (likes, replies, views and the cascade that removes them),
+`snippetService` and `groupService` (membership, admins, deletion). Services
+call each other only downwards: the group and status services use the
+notification service, never the other way round.
 
 ## Process
 

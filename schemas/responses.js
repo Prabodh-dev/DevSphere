@@ -1,4 +1,5 @@
 import { z } from "./openapi.js";
+import { NOTIFICATION_TYPES } from "../models/Notification.js";
 
 // Shapes of what the API sends back. They are used to build the OpenAPI
 // document and are checked against real responses in the tests.
@@ -234,6 +235,17 @@ export const Message = z
         content: z.string().optional(),
       })
       .optional(),
+    media: z
+      .object({
+        kind: z.enum(["image", "file"]),
+        mimeType: z.string().openapi({ example: "image/png" }),
+        size: z.number().int(),
+        fileName: z.string().openapi({ example: "diagram.png" }),
+        url: z.string().openapi({
+          description: "Short-lived signed link to the stored file",
+        }),
+      })
+      .optional(),
     createdAt: date(WHEN),
     updatedAt: date(WHEN),
   })
@@ -249,6 +261,13 @@ export const StatusItem = z
     content: z.string().openapi({
       description: "The text, or a short-lived signed URL for media",
     }),
+    likeCount: z.number().int().openapi({ example: 3 }),
+    replyCount: z.number().int().openapi({ example: 1 }),
+    viewCount: z.number().int().openapi({
+      description: "People who viewed it, each counted once",
+      example: 12,
+    }),
+    likedByMe: z.boolean(),
     visibleUntil: date(WHEN),
     expiresAt: date(WHEN),
     createdAt: date(WHEN),
@@ -257,11 +276,46 @@ export const StatusItem = z
   .loose()
   .openapi("Status");
 
+export const StatusReply = z
+  .object({
+    _id: id(ID),
+    status: id(ID2),
+    user: PublicUser,
+    text: z.string().openapi({ example: "Nice one!" }),
+    createdAt: date(WHEN),
+  })
+  .loose()
+  .openapi("StatusReply");
+
+export const LikeState = z
+  .object({ liked: z.boolean(), likeCount: z.number().int() })
+  .openapi("LikeState");
+
+export const ViewCount = z
+  .object({ viewCount: z.number().int() })
+  .openapi("ViewCount");
+
 export const StatusCreated = z
   .object({ message: z.string(), status: StatusItem })
   .openapi("StatusCreated");
 
 // ---- other ----
+export const Snippet = z
+  .object({
+    _id: id(ID),
+    owner: PublicUser,
+    title: z.string().openapi({ example: "Debounce helper" }),
+    description: z.string(),
+    code: z.string(),
+    language: z.string().openapi({ example: "javascript" }),
+    tags: z.array(z.string()),
+    visibility: z.enum(["public", "private"]),
+    createdAt: date(WHEN),
+    updatedAt: date(WHEN),
+  })
+  .loose()
+  .openapi("Snippet");
+
 export const Highlighted = z
   .object({
     highlighted: z
@@ -296,16 +350,29 @@ export const NotificationItem = z
   .object({
     _id: id(ID),
     user: id(ID2),
-    type: z.enum(["message", "follow", "group", "status"]),
+    type: z.enum(NOTIFICATION_TYPES).openapi({
+      description:
+        "follow: someone followed you. like: someone liked your status. reply: someone replied to your status. mention: someone mentioned you (@username) in a chat message. group: you were added to a group. message and status are older kinds that are no longer created.",
+    }),
     content: z.string().optional(),
     fromUser: PublicUser.nullable().optional(),
     chatId: id(ID2).optional(),
-    seen: z.boolean(),
+    statusId: id(ID2).optional(),
+    messageId: id(ID2).optional(),
+    seen: z.boolean().openapi({ description: "True once it has been read" }),
     createdAt: date(WHEN),
     updatedAt: date(WHEN),
   })
   .loose()
   .openapi("Notification");
+
+export const UnreadCount = z
+  .object({ unreadCount: z.number().int().openapi({ example: 3 }) })
+  .openapi("UnreadCount");
+
+export const UpdatedCount = z
+  .object({ updated: z.number().int().openapi({ example: 3 }) })
+  .openapi("UpdatedCount");
 
 export const ReportItem = z
   .object({
@@ -314,7 +381,7 @@ export const ReportItem = z
       id(ID2),
       z.object({ _id: id(ID2), username: z.string() }),
     ]),
-    targetType: z.enum(["message", "status", "user"]),
+    targetType: z.enum(["message", "status", "user", "snippet"]),
     targetId: id(ID),
     reason: z.string(),
     status: z.enum(["open", "resolved"]),

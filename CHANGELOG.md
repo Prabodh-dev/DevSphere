@@ -54,6 +54,16 @@
 - Removing a member, blocking a user or ending a login now also closes the local sockets when Redis is unreachable.
 - Docs: a Scaling section in the README, and the new events in `docs/socket-events.md`.
 
+### Product features
+
+- Chat media: `POST /api/v1/chat/media` sends an image (JPEG, PNG, WebP, GIF) or a PDF or ZIP file to a chat or group. It reuses the private bucket, server-generated keys, the MIME allow-list and the magic-byte check, answers `503 UPLOADS_NOT_CONFIGURED` without storage, and limits sizes per kind (`CHAT_IMAGE_MAX_MB`, `CHAT_FILE_MAX_MB`). The message is stored with its type, key, size and file name, delivered through the normal message service, and shown as `[image]` or `[file]` in the chat list. Responses and events carry a signed link, never the key.
+- Snippets: create, read, update, delete, `mine`, a user's public snippets and a public search by tag and language, with cursor pagination, public or private visibility and size limits. Public snippets can be reported and removed by admins.
+- Status interactions: likes (one per user), replies and views (one per user), with `likeCount`, `replyCount`, `viewCount` and `likedByMe` on statuses, `GET` and `DELETE /api/v1/status/:id`, and removal of a status's likes, replies, views and notifications. Statuses of blocked accounts are hidden.
+- Groups: leave (not for the last admin), promote and demote admins, delete a group with its messages, read markers, live code document, media files and notifications. Members who leave or are removed leave the socket rooms at once. New `group-updated` event.
+- Notifications are created for new followers, status likes and replies, `@username` mentions in chats, and group additions. Nobody is notified about their own actions, repeated likes and follows collapse, and notifications about deleted content are deleted with it. New `unread-count`, mark one read and mark all read endpoints.
+- Cleanup: `returnDocument: "after"` replaces the deprecated `new: true`, the adapter's subscriber and every test Redis client have an error handler, and `TRUST_PROXY` accepts a list of proxy addresses or subnets (a hop count stays the recommended value; a bare `true` logs a warning at startup).
+- No migration is needed: new fields (`likeCount` and the others, `media`) read as empty on existing documents. Run `pnpm db:indexes` for the new collections.
+
 ### Breaking
 
 - Access tokens now expire after 15 minutes. Tokens issued before this change are rejected, so everyone signs in once more.
@@ -73,3 +83,5 @@
 - `send-message` no longer relays arbitrary payloads: it takes `{ chatId, type?, text?, code? }`, saves the message, and `receive-message` carries the stored message. The sender's own sockets receive it too. `group-message` is kept as another name for it.
 - `code-change` needs `baseRevision`, and `code-update` carries the revision, the chat id and the editor.
 - The socket rate limit is shared by all of a user's connections.
+- `POST /api/v1/chat/message` no longer accepts `type: "media"`; media is sent with `POST /api/v1/chat/media`.
+- Status responses gain `likeCount`, `replyCount`, `viewCount` and `likedByMe`, and `receive-message` for a media message carries `media` with a signed link.

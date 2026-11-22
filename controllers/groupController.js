@@ -21,6 +21,30 @@ export const removeFromGroup = async (req, res) => {
 };
 
 export const renameGroup = async (req, res) => {
-  await groups.renameGroup(req.user, req.valid.body);
+  await groups.renameGroup(req.user, req.valid.body, req.app.get("io"));
   res.status(200).json({ message: "Group renamed" });
+};
+
+export const leaveGroup = async (req, res) => {
+  await groups.leaveGroup(req.user, req.valid.body, req.app.get("io"));
+  res.status(200).json({ message: "You left the group" });
+};
+
+export const promoteMember = async (req, res) => {
+  await groups.promoteMember(req.user, req.valid.body, req.app.get("io"));
+  res.status(200).json({ message: "User is now an admin" });
+};
+
+export const demoteMember = async (req, res) => {
+  await groups.demoteMember(req.user, req.valid.body, req.app.get("io"));
+  res.status(200).json({ message: "User is no longer an admin" });
+};
+
+export const deleteGroup = async (req, res) => {
+  await groups.deleteGroup(
+    req.user,
+    { chatId: req.valid.params.chatId },
+    req.app.get("io")
+  );
+  res.status(200).json({ message: "Group deleted" });
 };

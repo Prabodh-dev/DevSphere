@@ -67,10 +67,11 @@ export const tagQuery = pageQuery.extend({ tag: text(30) });
 export const accessChatBody = z.object({ userId: objectId });
 export const chatIdParams = z.object({ chatId: objectId });
 
+// Media messages are uploaded to POST /chat/media instead.
 export const sendMessageBody = z
   .object({
     chatId: objectId,
-    type: z.enum(["text", "media", "code"]).default("text"),
+    type: z.enum(["text", "code"]).default("text"),
     text: z.string().trim().min(1).max(5000).optional(),
     code: z
       .object({
@@ -93,6 +94,7 @@ export const sendMessageBody = z
     }
   });
 
+export const mediaMessageBody = z.object({ chatId: objectId });
 export const markReadBody = z.object({ messageId: objectId });
 
 // ---- groups ----
@@ -100,6 +102,7 @@ export const createGroupBody = z.object({
   chatName: text(100),
   members: z.array(objectId).max(100, "at most 100 members are allowed"),
 });
+export const groupChatBody = z.object({ chatId: objectId });
 export const groupMemberBody = z.object({ chatId: objectId, userId: objectId });
 export const renameGroupBody = z.object({
   chatId: objectId,
@@ -122,18 +125,63 @@ export const statusBody = z
     }
   });
 
+export const statusIdParams = z.object({ id: objectId });
+export const statusReplyBody = z.object({ text: text(500) });
+
 // ---- reports and admin ----
 export const reportBody = z.object({
-  targetType: z.enum(["message", "status", "user"]),
+  targetType: z.enum(["message", "status", "user", "snippet"]),
   targetId: objectId,
   reason: text(1000),
 });
 export const removeParams = z.object({
-  type: z.enum(["status", "message", "user"]),
+  type: z.enum(["status", "message", "user", "snippet"]),
   id: objectId,
 });
 
 // ---- snippets ----
+const snippetTags = z
+  .array(text(30).toLowerCase())
+  .max(10, "at most 10 tags are allowed");
+const snippetFields = {
+  title: text(100),
+  description: z.string().trim().max(500),
+  code: z.string().min(1).max(50000),
+  language: text(50),
+  tags: snippetTags,
+  visibility: z.enum(["public", "private"]),
+};
+export const createSnippetBody = z.object({
+  title: snippetFields.title,
+  description: snippetFields.description.optional(),
+  code: snippetFields.code,
+  language: snippetFields.language.optional(),
+  tags: snippetFields.tags.optional(),
+  visibility: snippetFields.visibility.default("private"),
+});
+export const updateSnippetBody = z
+  .object({
+    title: snippetFields.title.optional(),
+    description: snippetFields.description.optional(),
+    code: snippetFields.code.optional(),
+    language: snippetFields.language.optional(),
+    tags: snippetFields.tags.optional(),
+    visibility: snippetFields.visibility.optional(),
+  })
+  .refine((body) => Object.keys(body).length > 0, {
+    message: "send at least one field to change",
+  });
+export const snippetIdParams = z.object({ id: objectId });
+export const snippetUserParams = z.object({ userId: objectId });
+// Filters for lists of snippets.
+export const snippetListQuery = pageQuery.extend({
+  language: text(50).optional(),
+  tag: text(30).toLowerCase().optional(),
+});
+export const mySnippetsQuery = snippetListQuery.extend({
+  visibility: z.enum(["public", "private"]).optional(),
+});
+
 export const highlightBody = z.object({
   code: z.string().min(1).max(20000),
   language: text(50).optional(),
@@ -142,6 +190,8 @@ export const highlightBody = z.object({
 export const reportsQuery = pageQuery.extend({
   status: z.enum(["open", "resolved", "all"]).default("open"),
 });
+
+export const notificationIdParams = z.object({ id: objectId });
 
 // ---- presence ----
 const MAX_PRESENCE_IDS = 100;

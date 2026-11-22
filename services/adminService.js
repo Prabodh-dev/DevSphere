@@ -1,5 +1,6 @@
 import Message from "../models/Message.js";
 import Report from "../models/Report.js";
+import Snippet from "../models/Snippet.js";
 import Status from "../models/Status.js";
 import User from "../models/User.js";
 import { refreshLatestMessage } from "../utils/chatPreview.js";
@@ -7,6 +8,8 @@ import { badRequest, notFound } from "../utils/httpError.js";
 import { paginate } from "../utils/pagination.js";
 import { disconnectUser } from "../utils/socketOps.js";
 import { deleteMedia } from "../utils/s3Utils.js";
+import { removeNotificationsFor } from "./notificationService.js";
+import { removeStatus } from "./statusService.js";
 import { revokeAllForUser } from "./sessionService.js";
 
 // Blocks or unblocks an account. A blocked user is signed out everywhere and
@@ -54,12 +57,15 @@ export async function removeReported(admin, { type, id }, io) {
   if (type === "user") {
     await setBlocked(id, true, admin._id, io);
   } else {
-    const Model = type === "status" ? Status : Message;
+    const Model =
+      type === "status" ? Status : type === "snippet" ? Snippet : Message;
     const deleted = await Model.findByIdAndDelete(id);
     if (!deleted) throw notFound(`${type} not found`);
 
-    if (type === "status") await deleteMedia(deleted.mediaKey);
+    if (type === "status") await removeStatus(deleted);
     if (type === "message") {
+      await deleteMedia(deleted.media?.key);
+      await removeNotificationsFor({ messageId: deleted._id });
       await refreshLatestMessage(deleted.chat, deleted._id);
     }
   }

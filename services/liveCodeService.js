@@ -212,6 +212,26 @@ export async function flushLiveCode(chatIds = [...pending.keys()]) {
   await Promise.allSettled([...inflight]);
 }
 
+// Forgets the document of a chat that is being deleted: edits waiting to be
+// saved, and the working copy (in memory and in Redis). The stored document is
+// the caller's to delete, after this, so nothing writes it back.
+export async function discardLiveCode(chatId) {
+  const id = String(chatId);
+  clearTimeout(pending.get(id)?.timer);
+  pending.delete(id);
+  // A save that is already running has to finish before the document goes.
+  await Promise.allSettled([...inflight]);
+  memory.docs.delete(id);
+  const client = config.redis.url ? getRedisClient() : null;
+  if (client) {
+    try {
+      await client.del(new RedisCopies(client).key(id));
+    } catch (err) {
+      logger.warn({ err: err.message }, "Could not remove live code copy");
+    }
+  }
+}
+
 // Forgets unsaved edits and in-memory copies (for tests).
 export function resetLiveCode() {
   for (const entry of pending.values()) clearTimeout(entry.timer);

@@ -343,6 +343,22 @@ route({
   errors: [403, 404],
 });
 route({
+  method: "post",
+  path: "/chat/media",
+  tags: ["Chat"],
+  summary: "Send an image or a file",
+  description:
+    "multipart/form-data with `chatId` and a `file`: an image (JPEG, PNG, WebP, GIF, up to `CHAT_IMAGE_MAX_MB`) or a PDF or ZIP file (up to `CHAT_FILE_MAX_MB`). The type is checked from the file's bytes. The message is delivered like any other. Responses carry a signed link, never the storage key. Answers 503 `UPLOADS_NOT_CONFIGURED` when storage is not set up.",
+  auth: "bearer",
+  multipart: z.object({
+    chatId: z.string(),
+    file: file("Image, PDF or ZIP"),
+  }),
+  ok: 201,
+  response: R.Message,
+  errors: [403, 404, 413, 415, 503],
+});
+route({
   method: "put",
   path: "/chat/{chatId}/read",
   tags: ["Chat"],
@@ -411,6 +427,51 @@ route({
   response: R.MessageResponse,
   errors: [403, 404],
 });
+route({
+  method: "patch",
+  path: "/group/leave",
+  tags: ["Groups"],
+  summary: "Leave a group",
+  description:
+    "The last admin cannot leave: promote another member first, or delete the group. Your open connections stop receiving the group's messages straight away.",
+  auth: "bearer",
+  body: S.groupChatBody,
+  response: R.MessageResponse,
+  errors: [403, 404],
+});
+route({
+  method: "patch",
+  path: "/group/promote",
+  tags: ["Groups"],
+  summary: "Make a member an admin (group admins only)",
+  auth: "bearer",
+  body: S.groupMemberBody,
+  response: R.MessageResponse,
+  errors: [403, 404],
+});
+route({
+  method: "patch",
+  path: "/group/demote",
+  tags: ["Groups"],
+  summary: "Take admin rights from an admin (group admins only)",
+  description: "A group always keeps at least one admin.",
+  auth: "bearer",
+  body: S.groupMemberBody,
+  response: R.MessageResponse,
+  errors: [403, 404],
+});
+route({
+  method: "delete",
+  path: "/group/{chatId}",
+  tags: ["Groups"],
+  summary: "Delete a group (group admins only)",
+  description:
+    "Removes the group's messages (and the files they refer to), read markers, live code document and notifications, and takes every member's connections out of its rooms.",
+  auth: "bearer",
+  params: S.chatIdParams,
+  response: R.MessageResponse,
+  errors: [403, 404],
+});
 
 // ---- status ----
 route({
@@ -442,6 +503,90 @@ route({
 });
 
 // ---- other ----
+const STATUS_VISIBLE =
+  "Statuses can be seen, liked and replied to by their owner and by the people who follow them, while they are active. Anything else (including statuses of blocked accounts) is answered with 404.";
+route({
+  method: "get",
+  path: "/status/{id}",
+  tags: ["Status"],
+  summary: "One status, with its counts",
+  description: STATUS_VISIBLE,
+  auth: "bearer",
+  params: S.statusIdParams,
+  response: R.StatusItem,
+  errors: [404],
+});
+route({
+  method: "delete",
+  path: "/status/{id}",
+  tags: ["Status"],
+  summary: "Delete your status",
+  description:
+    "Also removes its stored file, likes, replies, views and the notifications about it.",
+  auth: "bearer",
+  params: S.statusIdParams,
+  response: R.MessageResponse,
+  errors: [404],
+});
+route({
+  method: "put",
+  path: "/status/{id}/like",
+  tags: ["Status"],
+  summary: "Like a status",
+  description: `One like per user: repeating it changes nothing. The owner gets one notification. ${STATUS_VISIBLE}`,
+  auth: "bearer",
+  params: S.statusIdParams,
+  response: R.LikeState,
+  errors: [404],
+});
+route({
+  method: "delete",
+  path: "/status/{id}/like",
+  tags: ["Status"],
+  summary: "Take back a like",
+  description: "Harmless when there is no like.",
+  auth: "bearer",
+  params: S.statusIdParams,
+  response: R.LikeState,
+  errors: [404],
+});
+route({
+  method: "post",
+  path: "/status/{id}/replies",
+  tags: ["Status"],
+  summary: "Reply to a status",
+  description: `Text of up to 500 characters. The owner gets a notification. ${STATUS_VISIBLE}`,
+  auth: "bearer",
+  params: S.statusIdParams,
+  body: S.statusReplyBody,
+  bodyExample: { text: "Nice one!" },
+  ok: 201,
+  response: R.StatusReply,
+  errors: [404],
+});
+route({
+  method: "get",
+  path: "/status/{id}/replies",
+  tags: ["Status"],
+  summary: "Replies to a status, oldest first",
+  auth: "bearer",
+  params: S.statusIdParams,
+  query: S.pageQuery,
+  response: paged("StatusReplyPage", R.StatusReply),
+  errors: [404],
+});
+route({
+  method: "post",
+  path: "/status/{id}/view",
+  tags: ["Status"],
+  summary: "Count a view of a status",
+  description:
+    "Each user is counted once; the owner's own views do not count. Returns the number of views.",
+  auth: "bearer",
+  params: S.statusIdParams,
+  response: R.ViewCount,
+  errors: [404],
+});
 route({
   method: "post",
   path: "/snippets/highlight",
@@ -451,6 +596,90 @@ route({
   body: S.highlightBody,
   bodyExample: { code: "const a = 1;", language: "javascript" },
   response: R.Highlighted,
+});
+route({
+  method: "post",
+  path: "/snippets",
+  tags: ["Snippets"],
+  summary: "Save a snippet",
+  description:
+    "Snippets are private unless `visibility` is `public`. Code is limited to 50000 characters, titles to 100, descriptions to 500, and a snippet has at most 10 tags (stored in lower case).",
+  auth: "bearer",
+  body: S.createSnippetBody,
+  bodyExample: {
+    title: "Debounce helper",
+    code: "const debounce = (fn, ms) => { /* ... */ };",
+    language: "javascript",
+    tags: ["utils"],
+    visibility: "public",
+  },
+  ok: 201,
+  response: R.Snippet,
+});
+route({
+  method: "get",
+  path: "/snippets",
+  tags: ["Snippets"],
+  summary: "Search public snippets",
+  description:
+    "Public snippets of everyone, newest first, optionally filtered by `tag` and `language`.",
+  auth: "bearer",
+  query: S.snippetListQuery,
+  response: paged("SnippetPage", R.Snippet),
+});
+route({
+  method: "get",
+  path: "/snippets/mine",
+  tags: ["Snippets"],
+  summary: "Your snippets, public and private",
+  auth: "bearer",
+  query: S.mySnippetsQuery,
+  response: paged("MySnippetPage", R.Snippet),
+});
+route({
+  method: "get",
+  path: "/snippets/user/{userId}",
+  tags: ["Snippets"],
+  summary: "The public snippets of a user",
+  auth: "bearer",
+  params: S.snippetUserParams,
+  query: S.snippetListQuery,
+  response: paged("UserSnippetPage", R.Snippet),
+  errors: [404],
+});
+route({
+  method: "get",
+  path: "/snippets/{id}",
+  tags: ["Snippets"],
+  summary: "Read a snippet",
+  description:
+    "Public snippets can be read by anyone signed in; a private snippet only by its owner (everyone else gets 404).",
+  auth: "bearer",
+  params: S.snippetIdParams,
+  response: R.Snippet,
+  errors: [404],
+});
+route({
+  method: "patch",
+  path: "/snippets/{id}",
+  tags: ["Snippets"],
+  summary: "Change one of your snippets",
+  auth: "bearer",
+  params: S.snippetIdParams,
+  body: S.updateSnippetBody,
+  bodyExample: { visibility: "private" },
+  response: R.Snippet,
+  errors: [404],
+});
+route({
+  method: "delete",
+  path: "/snippets/{id}",
+  tags: ["Snippets"],
+  summary: "Delete one of your snippets",
+  auth: "bearer",
+  params: S.snippetIdParams,
+  response: R.MessageResponse,
+  errors: [404],
 });
 route({
   method: "get",
@@ -483,10 +712,38 @@ route({
   response: paged("NotificationPage", R.NotificationItem),
 });
 route({
+  method: "get",
+  path: "/notifications/unread-count",
+  tags: ["Notifications"],
+  summary: "How many notifications you have not read",
+  auth: "bearer",
+  response: R.UnreadCount,
+});
+route({
+  method: "patch",
+  path: "/notifications/read-all",
+  tags: ["Notifications"],
+  summary: "Mark all your notifications as read",
+  auth: "bearer",
+  response: R.UpdatedCount,
+});
+route({
+  method: "patch",
+  path: "/notifications/{id}/read",
+  tags: ["Notifications"],
+  summary: "Mark one notification as read",
+  description:
+    "Repeating it is harmless. Another user's notification is answered with 404.",
+  auth: "bearer",
+  params: S.notificationIdParams,
+  response: R.NotificationItem,
+  errors: [404],
+});
+route({
   method: "post",
   path: "/report",
   tags: ["Reports"],
-  summary: "Report a message, status or user",
+  summary: "Report a message, status, snippet or user",
   auth: "bearer",
   body: S.reportBody,
   ok: 201,

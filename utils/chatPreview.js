@@ -6,6 +6,9 @@ const PREVIEW_LENGTH = 100;
 // Short text shown in the chat list for a message.
 export function previewOf(message) {
   if (message.type === "code") return "[code]";
+  if (message.type === "media") {
+    return message.media?.mimeType?.startsWith("image/") ? "[image]" : "[file]";
+  }
   const text = (message.text ?? "").trim();
   return text.length > PREVIEW_LENGTH
     ? `${text.slice(0, PREVIEW_LENGTH)}…`

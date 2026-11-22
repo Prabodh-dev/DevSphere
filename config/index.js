@@ -1,5 +1,6 @@
 // The one place that reads environment variables. Every value is parsed and
 // validated with zod, once, and the rest of the code uses `config`.
+import net from "net";
 import dotenv from "dotenv";
 import { z } from "zod";
 
@@ -37,6 +38,28 @@ const seconds = z
     return Number(amount) * UNIT_SECONDS[unit];
   })
   .refine((n) => n > 0);
+
+// TRUST_PROXY: a number of proxy hops, a list of trusted proxy addresses or
+// subnets (with the names Express knows: loopback, linklocal, uniquelocal),
+// or true/false. Express reads the list as a comma separated string.
+const PROXY_NAMES = ["loopback", "linklocal", "uniquelocal"];
+const proxyEntry = (entry) => {
+  if (PROXY_NAMES.includes(entry)) return true;
+  const [address, bits, ...rest] = entry.split("/");
+  const family = net.isIP(address);
+  if (!family || rest.length) return false;
+  if (bits === undefined) return true;
+  return /^\d+$/.test(bits) && Number(bits) <= (family === 4 ? 32 : 128);
+};
+const trustProxy = z.string().transform((value, ctx) => {
+  if (/^\d+$/.test(value)) return Number(value);
+  if (value.toLowerCase() === "true") return true;
+  if (value.toLowerCase() === "false") return 0;
+  const entries = value.split(",").map((entry) => entry.trim());
+  if (entries.every(proxyEntry)) return entries.join(", ");
+  ctx.addIssue({ code: "custom", message: "invalid" });
+  return z.NEVER;
+});
 const oneOf = (values) => z.enum(values);
 const originList = z.string().transform((value) =>
   value
@@ -66,8 +89,9 @@ const variables = [
   },
   {
     name: "TRUST_PROXY",
-    type: count(0),
-    message: "TRUST_PROXY must be a whole number of proxy hops",
+    type: trustProxy,
+    message:
+      "TRUST_PROXY must be a number of proxy hops or a list of proxy addresses or subnets",
     fallback: () => 0,
   },
   {
@@ -168,6 +192,20 @@ const variables = [
     fallback: () => 2000,
   },
 
+  // Chat media limits, in megabytes, per kind of file.
+  {
+    name: "CHAT_IMAGE_MAX_MB",
+    type: count(1),
+    message: "CHAT_IMAGE_MAX_MB must be a positive whole number",
+    fallback: () => 10,
+  },
+  {
+    name: "CHAT_FILE_MAX_MB",
+    type: count(1),
+    message: "CHAT_FILE_MAX_MB must be a positive whole number",
+    fallback: () => 20,
+  },
+
   {
     name: "AWS_ACCESS_KEY",
     type: text,
@@ -226,6 +264,17 @@ const variables = [
   },
 ];
 
+// A warning for settings that work but are risky, shown at startup.
+export function getConfigWarnings(settings = config) {
+  const warnings = [];
+  if (settings.trustProxy === true) {
+    warnings.push(
+      "TRUST_PROXY=true trusts every X-Forwarded-For header, so any client can pick the address the rate limits see. Use the number of proxies in front of the app, or a list of their addresses."
+    );
+  }
+  return warnings;
+}
+
 // Names of all the variables, for documentation checks.
 export const ENV_VARIABLES = variables.map((variable) => variable.name);
 
@@ -267,6 +316,10 @@ export function loadConfig(env = process.env) {
       docsEnabled: raw.DOCS_ENABLED,
       redis: { url: raw.REDIS_URL, keyPrefix: raw.REDIS_KEY_PREFIX },
       liveCode: { flushMs: raw.LIVE_CODE_FLUSH_MS },
+      chatMedia: {
+        imageMaxBytes: raw.CHAT_IMAGE_MAX_MB * 1024 * 1024,
+        fileMaxBytes: raw.CHAT_FILE_MAX_MB * 1024 * 1024,
+      },
       rateLimit: {
         general: raw.RATE_LIMIT_MAX,
         auth: raw.AUTH_RATE_LIMIT_MAX,

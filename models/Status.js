@@ -19,6 +19,10 @@ const statusSchema = new mongoose.Schema(
     // itself is removed, a little later, so stored files can be cleaned up first.
     visibleUntil: { type: Date },
     expiresAt: { type: Date, required: true }, // TTL auto-delete
+    // Kept in step with the likes, replies and views of the status.
+    likeCount: { type: Number, default: 0, min: 0 },
+    replyCount: { type: Number, default: 0, min: 0 },
+    viewCount: { type: Number, default: 0, min: 0 },
   },
   { timestamps: true }
 );

@@ -2,7 +2,13 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { ENV_VARIABLES, getEnvProblems, loadConfig } from "../config/index.js";
+import {
+  ENV_VARIABLES,
+  getConfigWarnings,
+  getEnvProblems,
+  loadConfig,
+} from "../config/index.js";
+import { toPosix } from "./helpers/paths.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const LONG_SECRET = "x".repeat(32);
@@ -46,7 +52,7 @@ describe("getEnvProblems", () => {
       ],
       [
         { TRUST_PROXY: "yes" },
-        "TRUST_PROXY must be a whole number of proxy hops",
+        "TRUST_PROXY must be a number of proxy hops or a list of proxy addresses or subnets",
       ],
       [{ COOKIE_SECURE: "maybe" }, "COOKIE_SECURE must be true or false"],
       [
@@ -118,6 +124,7 @@ describe("config", () => {
       docsEnabled: true,
       redis: { url: "", keyPrefix: "" },
       liveCode: { flushMs: 2000 },
+      chatMedia: { imageMaxBytes: 10485760, fileMaxBytes: 20971520 },
       rateLimit: { general: 300, auth: 10, refresh: 60, highlight: 30 },
       aws: { accessKey: "", secretKey: "", region: "", bucket: "" },
       mediaUrlTtlSeconds: 300,
@@ -239,7 +246,54 @@ describe("environment access", () => {
     const offenders = files(root)
       .filter((file) => !file.endsWith(path.join("config", "index.js")))
       .filter((file) => /process\.env/.test(readFileSync(file, "utf8")))
-      .map((file) => path.relative(root, file));
+      .map((file) => toPosix(path.relative(root, file)));
     expect(offenders).toEqual([]);
+  });
+});
+
+describe("TRUST_PROXY", () => {
+  const trust = (value) => cfg({ TRUST_PROXY: value }).trustProxy;
+
+  it("accepts a hop count", () => {
+    expect(trust("")).toBe(0);
+    expect(trust("0")).toBe(0);
+    expect(trust("1")).toBe(1);
+    expect(trust("2")).toBe(2);
+  });
+
+  it("accepts a list of proxy addresses, subnets and names", () => {
+    expect(trust("loopback")).toBe("loopback");
+    expect(trust("10.0.0.0/8, 192.168.1.10")).toBe("10.0.0.0/8, 192.168.1.10");
+    expect(trust(" 10.0.0.0/8 ,loopback ")).toBe("10.0.0.0/8, loopback");
+    expect(trust("fd00::/8")).toBe("fd00::/8");
+  });
+
+  it("accepts true and false", () => {
+    expect(trust("true")).toBe(true);
+    expect(trust("false")).toBe(0);
+  });
+
+  it.each([
+    "yes",
+    "-1",
+    "1.5",
+    "10.0.0.0/33",
+    "300.1.1.1",
+    "loopback, nope",
+    "10.0.0.0/x",
+    "10.0.0.0/8/8",
+  ])("refuses %s and reports it", (value) => {
+    expect(getEnvProblems({ ...base, TRUST_PROXY: value })).toEqual([
+      "TRUST_PROXY must be a number of proxy hops or a list of proxy addresses or subnets",
+    ]);
+  });
+
+  it("warns about a bare true, and about nothing else", () => {
+    const warnings = getConfigWarnings(cfg({ TRUST_PROXY: "true" }));
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("TRUST_PROXY=true");
+    for (const value of ["", "0", "1", "loopback", "10.0.0.0/8", "false"]) {
+      expect(getConfigWarnings(cfg({ TRUST_PROXY: value }))).toEqual([]);
+    }
   });
 });

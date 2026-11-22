@@ -2,7 +2,11 @@ import User from "../models/User.js";
 import { paginate } from "../utils/pagination.js";
 
 export async function updateTags(userId, tags) {
-  const user = await User.findByIdAndUpdate(userId, { tags }, { new: true });
+  const user = await User.findByIdAndUpdate(
+    userId,
+    { tags },
+    { returnDocument: "after" }
+  );
   return user.tags;
 }
 

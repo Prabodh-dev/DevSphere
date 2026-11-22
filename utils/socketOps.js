@@ -1,4 +1,4 @@
-import { sessionRoom, userRoom } from "./rooms.js";
+import { chatRoom, liveCodeRoom, sessionRoom, userRoom } from "./rooms.js";
 
 // With the Redis adapter, a room command (leave, disconnect) is sent to Redis
 // and carried out when it comes back, on every instance. While Redis is
@@ -12,6 +12,15 @@ export function removeUserFromRooms(io, userId, rooms) {
   if (!io) return;
   io.in(userRoom(userId)).socketsLeave(rooms);
   io.local.in(userRoom(userId)).socketsLeave(rooms);
+}
+
+// Takes every socket out of a chat's rooms (its messages and its live code),
+// for a chat that no longer exists.
+export function emptyChatRooms(io, chatId) {
+  if (!io) return;
+  const rooms = [chatRoom(chatId), liveCodeRoom(chatId)];
+  io.in(rooms).socketsLeave(rooms);
+  io.local.in(rooms).socketsLeave(rooms);
 }
 
 // Closes every socket of a user.
